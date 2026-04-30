@@ -1,9 +1,40 @@
+CC      = gcc
+CFLAGS  = -m32 -ffreestanding -Ikernel/include -fno-stack-protector
+LDFLAGS = -m elf_i386 -T linker.ld
+
+OBJS = boot.o gdt_asm.o gdt.o idt_asm.o idt.o isr.o kernel.o shell.o pit.o
+
 all: myos.iso
 
-kernel.bin:
+boot.o:
 	nasm -f elf32 kernel/boot.asm -o boot.o
-	gcc -m32 -ffreestanding -c kernel/kernel.c -o kernel.o
-	ld -m elf_i386 -T linker.ld -o kernel.bin boot.o kernel.o
+
+gdt_asm.o:
+	nasm -f elf32 kernel/gdt.asm -o gdt_asm.o
+
+gdt.o:
+	$(CC) $(CFLAGS) -c kernel/gdt.c -o gdt.o
+
+idt_asm.o:
+	nasm -f elf32 kernel/idt.asm -o idt_asm.o
+
+idt.o:
+	$(CC) $(CFLAGS) -c kernel/idt.c -o idt.o
+
+isr.o:
+	$(CC) $(CFLAGS) -c kernel/isr.c -o isr.o
+
+kernel.o:
+	$(CC) $(CFLAGS) -c kernel/kernel.c -o kernel.o
+
+shell.o:
+	$(CC) $(CFLAGS) -c kernel/shell.c -o shell.o
+
+pit.o:
+	$(CC) $(CFLAGS) -c kernel/pit.c -o pit.o
+
+kernel.bin: $(OBJS)
+	ld $(LDFLAGS) -o kernel.bin $(OBJS)
 
 myos.iso: kernel.bin
 	mkdir -p iso/boot/grub
@@ -12,7 +43,7 @@ myos.iso: kernel.bin
 	grub2-mkrescue -o myos.iso iso
 
 run: myos.iso
-	qemu-system-x86_64 -cdrom myos.iso -m 512 -boot d
+	qemu-system-i386 -cdrom myos.iso -m 512 -boot d
 
 clean:
 	rm -f *.o kernel.bin myos.iso
