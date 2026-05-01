@@ -3,12 +3,12 @@
 #include "include/pit.h"
 /* ── our own strcmp — no stdlib in PrajnaOS ── */
 static int kstrcmp(char *a, char *b) {
-    while (*a && *b) {        /* while both strings have chars */
+    while (*b) {        /* while both strings have chars */
         if (*a != *b)         /* if chars don't match */
             return 1;         /* not equal */
         a++; b++;             /* move to next char */
     }
-    return (*a != *b);        /* equal only if both ended */
+    return !(*a== ' ' || *a == '\0');        /* equal only if both ended */
 }
 static void print_prompt(char *s, char color) {
     while (*s) // loop until null terminator
@@ -40,25 +40,16 @@ void shell_handle(char *cmd) {
 
     } else if (kstrcmp(cmd, "clear") == 0) {
         /* clear screen by printing newlines */
-        for (int i = 0; i < 25; i++)
-            print("\n", 0x07);
-    }else if (kstrcmp(cmd,"Hello")==0)
-    {
-         print("########################################\n", 0x02);
-         print("#                                      #\n", 0x02);
-        print("#      Welcome to PrajnaOS             #\n", 0x02);
-        print("#                                      #\n", 0x02);
-        print("########################################\n", 0x02);
-
-    
-    
+        extern void clear_screen();  /* implemented in isr.c */
+        clear_screen();
+        
     }else if (kstrcmp(cmd, "uptime") == 0) {
     /* print tick count as simple number */
     uint32_t t = pit_get_ticks();
     char buf[32];
     /* convert number to string manually */
     int i = 0;
-    if (t == 0) { buf[i++] = '0'; }
+    if (t == 0) { buf[i++] = '0'; } // handle zero case
     else {
         uint32_t tmp = t;
         int start = i;
@@ -78,6 +69,20 @@ void shell_handle(char *cmd) {
     print("Ticks: ",0x0E);
     print(buf, 0x0E);
     }
+    }else if (kstrcmp(cmd, "echo") == 0)
+    {
+        if (cmd[4] == ' ') {
+            print(cmd + 5, 0x0A); // print text after "echo "
+        } else {
+            print("Usage: echo <text>", 0x0C);
+        }
+    }else if (kstrcmp(cmd, "version") == 0) {
+        print("PrajnaOS v0.1 - Bare Metal", 0x0E);
+    }else if (kstrcmp(cmd, "hello") == 0) {
+        print("Hello from PrajnaOS!", 0x0A);
+    }else if (kstrcmp(cmd, "beep") == 0) {
+        /* make beep sound if speaker available */
+        put_char('\x07', 0x07);  /* bell character */
     }else {
         print("Unknown command. Type help." , 0x04);
     }

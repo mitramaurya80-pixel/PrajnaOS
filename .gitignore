@@ -1,0 +1,28 @@
+# build files
+*.o
+*.bin
+*.elf
+*.iso
+
+# linker / kernel outputs
+kernel
+boot
+*.img
+
+# temporary files
+*.log
+*.tmp
+
+# editor files
+*.swp
+*.swo
+.vscode/
+.idea/
+
+#study files
+*.pdf
+*.docx
+
+# OS junk
+.DS_Store
+Thumbs.db

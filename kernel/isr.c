@@ -6,6 +6,17 @@
 static char input_buf[BUF_SIZE];   /* stores typed characters */
 static int  buf_pos = 0;           /* current position in buffer */
 
+// print fuction declaration
+void print(const char *msg, int row, int col, uint8_t color) {
+    char *vga = (char *)0xB8000;
+
+    for (int i = 0; msg[i] != '\0'; i++) {
+        int index = (row * 80 + (col + i)) * 2;
+
+        vga[index]     = msg[i];   /* character */
+        vga[index + 1] = color;    /* color */
+    }
+}
 
 static uint8_t inb(uint16_t port) { // read a byte from an I/O port
     uint8_t val; // the "a" constraint means to use the EAX register for output
@@ -25,7 +36,18 @@ static int shift_held = 0; // 0 = no shift, 1 = shift held
 #define RSHIFT_PRESS   0x36 // right shift key press scancode
 #define LSHIFT_RELEASE 0xAA  /* 0x2A + 0x80 */ // left shift key release scancode (press scancode + 0x80)
 #define RSHIFT_RELEASE 0xB6  /* 0x36 + 0x80 */ // right shift key release scancode (press scancode + 0x80)
-
+void clear_screen() {
+    /* Fill entire VGA buffer with spaces */
+    for (int i = 0; i < 2000; i++) {  /* 80 * 25 = 2000 cells */
+        vga[i] = ((uint16_t)0x07 << 8) | ' ';   /* black background, light gray space */
+    }
+    /* Reset cursor position */
+    col = 0;
+    row = 1; 
+      /* row 0, green  */
+    print("Welcome to PrajnaOS>",0,30, 0x09);  /* row 1, cyan   */
+    
+}
 /* normal keys — no shift */
 static char keys_normal[] = { // scancode to ASCII mapping for normal keys
     0,    0,   '1', '2', '3', '4', '5', '6',
