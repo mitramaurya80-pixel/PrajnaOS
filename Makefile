@@ -2,7 +2,7 @@ CC      = gcc
 CFLAGS  = -m32 -ffreestanding -Ikernel/include -fno-stack-protector
 LDFLAGS = -m elf_i386 -T linker.ld
 
-OBJS = boot.o gdt_asm.o gdt.o idt_asm.o idt.o isr.o kernel.o shell.o pit.o
+OBJS = boot.o gdt_asm.o gdt.o idt_asm.o idt.o isr.o kernel.o shell.o pit.o ata.o
 
 all: myos.iso
 
@@ -33,6 +33,9 @@ shell.o:
 pit.o:
 	$(CC) $(CFLAGS) -c kernel/pit.c -o pit.o
 
+ata.o:
+	$(CC) $(CFLAGS) -c kernel/ata.c -o ata.o
+
 kernel.bin: $(OBJS)
 	ld $(LDFLAGS) -o kernel.bin $(OBJS)
 
@@ -42,8 +45,18 @@ myos.iso: kernel.bin
 	cp boot/grub/grub.cfg iso/boot/grub/grub.cfg
 	grub2-mkrescue -o myos.iso iso
 
-run: myos.iso
-	qemu-system-i386 -cdrom myos.iso -m 512 -boot d
+run: myos.iso disk.img
+	# remount and update kernel on disk
+	sudo losetup -P /dev/loop10 disk.img
+	sudo mount /dev/loop10p1 /tmp/prajna
+	sudo cp iso/boot/kernel.bin /tmp/prajna/boot/
+	sudo umount /tmp/prajna
+	sudo losetup -d /dev/loop10
+	# boot from disk
+	qemu-system-i386 \
+	-drive file=disk.img,format=raw,if=ide,bus=0,unit=0 \
+	-m 512 -boot c
+	
 
 clean:
 	rm -f *.o kernel.bin myos.iso

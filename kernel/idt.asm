@@ -1,6 +1,7 @@
 global idt_flush
 global isr_keyboard
 global isr_timer        ; new — dummy timer handler
+global isr_default      ; default handler for unhandled interrupts
 extern irq0_handler   ; new — dummy timer handler
 extern keyboard_handler   ; new — dummy keyboard handler
 
@@ -9,6 +10,15 @@ idt_flush:
     lidt [eax]          ; load IDT into CPU
     sti                 ; enable interrupts
     ret
+
+isr_default:
+    pusha               ; save all registers
+    mov al, 0x20         ; EOI (End of Interrupt) command code
+    out 0x20, al        ; send EOI to PIC — "handled, send more"
+    out 0xA0, al        ; send EOI to slave PIC as well (in case it's a slave interrupt)
+    popa                ; restore all registers
+    iret                ; return from interrupt
+
 
 isr_timer:
     pusha               ; save all registers

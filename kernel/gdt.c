@@ -27,20 +27,20 @@ static void gdt_set(int i, uint32_t base, uint32_t limit,
 
     /* split the base address into 3 pieces
        because Intel designed the struct this weird way */
-    gdt[i].base_low  = (base & 0xFFFF);         /* grab bits 0-15  */
-    gdt[i].base_mid  = (base >> 16) & 0xFF;     /* grab bits 16-23 */
-    gdt[i].base_high = (base >> 24) & 0xFF;     /* grab bits 24-31 */
+      gdt[i].base_low  = (base & 0xFFFF);         /* grab bits 0-15  */
+      gdt[i].base_mid  = (base >> 16) & 0xFF;     /* grab bits 16-23 */
+      gdt[i].base_high = (base >> 24) & 0xFF;     /* grab bits 24-31 */
 
-    /* split the limit into 2 pieces */
-    gdt[i].limit_low   = (limit & 0xFFFF);      /* grab bits 0-15  */
+      /* split the limit into 2 pieces */
+      gdt[i].limit_low   = (limit & 0xFFFF);      /* grab bits 0-15  */
 
-    /* upper 4 bits of limit go into top of granularity byte
-       lower 4 bits of gran = flags (page size, 32-bit mode) */
-    gdt[i].granularity = ((limit >> 16) & 0x0F) /* bits 16-19 of limit */
-                       | (gran & 0xF0);          /* top 4 bits of flags */
+      /* upper 4 bits of limit go into top of granularity byte
+         lower 4 bits of gran = flags (page size, 32-bit mode) */
+      gdt[i].granularity = ((limit >> 16) & 0x0F) /* bits 16-19 of limit */
+                        | (gran & 0xF0);          /* top 4 bits of flags */
 
-    /* access byte goes in directly */
-    gdt[i].access = access;
+      /* access byte goes in directly */
+      gdt[i].access = access;
 }
 
 /*

@@ -10,6 +10,31 @@ static int kstrcmp(char *a, char *b) {
     }
     return !(*a== ' ' || *a == '\0');        /* equal only if both ended */
 }
+static void outb(uint16_t port, uint8_t val) { // Output byte to port
+    __asm__ volatile ("outb %0, %1" : : "a"(val), "Nd"(port)); // Output byte to port
+}
+static uint8_t inb(uint16_t port) { // read a byte from an I/O port
+    uint8_t val; // the "a" constraint means to use the EAX register for output
+    __asm__ volatile ("inb %1, %0" : "=a"(val) : "Nd"(port)); // "Nd" means the port can be an immediate value (0-255) or in DX register
+    return val; // return the value read from the port
+}
+// poweroff command fuction
+void halt(){
+    __asm__ volatile("cli"); /* disable interrupts */
+    while (1)
+    {
+        __asm__ volatile("hlt") ; /* halt CPU until next interrupt */
+    }
+    
+}
+void reboot() {
+    unsigned char status;
+    do {
+        status = inb(0x64);
+    } while (status & 0x02);
+
+    outb(0x64, 0xFE);
+}
 static void print_prompt(char *s, char color) {
     while (*s) // loop until null terminator
         put_char(*s++, color); // print each character with the specified color
@@ -83,7 +108,12 @@ void shell_handle(char *cmd) {
     }else if (kstrcmp(cmd, "beep") == 0) {
         /* make beep sound if speaker available */
         put_char('\x07', 0x07);  /* bell character */
-    }else {
+    }else if (kstrcmp(cmd, "poweroff") == 0) {
+        halt();
+    }else if (kstrcmp(cmd, "reboot") == 0) {
+        reboot();
+    }
+    else {
         print("Unknown command. Type help." , 0x04);
     }
 

@@ -45,8 +45,23 @@ void clear_screen() {
     col = 0;
     row = 1; 
       /* row 0, green  */
-    print("Welcome to PrajnaOS>",0,30, 0x09);  /* row 1, cyan   */
+    print("Welcome to PrajnaOS",0,30, 0x09);  /* row 1, cyan   */
     
+}
+
+// scroll the screen up by one line
+void scroll() {
+    /* copy each row into the row above it */
+    for (int i = 1; i < 25; i++) {
+        for (int j = 0; j < 80; j++) {
+            vga[(i-1) * 80 + j] = vga[i * 80 + j];
+        }
+    }
+    /* clear the last row */
+    for (int j = 0; j < 80; j++) {
+        vga[24 * 80 + j] = (0x07 << 8) | ' ';
+    }
+    row = 24;  /* stay on last row */
 }
 /* normal keys — no shift */
 static char keys_normal[] = { // scancode to ASCII mapping for normal keys
@@ -71,6 +86,7 @@ static char keys_shift[] = {
    'B',  'N', 'M', '<', '>', '?',  0,   0,
     0,   ' '
 };
+
 
 static int cursor_visible =0; // 0=hidden, 1=visible
 
@@ -110,7 +126,7 @@ cursor_visible = !cursor_visible;
     vga[row * 80 + col] = (color << 8) | (uint8_t)c;
     col++;
     if (col >= 80) { col = 0; row++; }
-    if (row >= 25) { row = 2; }
+    if (row >= 25) { scroll(); }
 }
 
 void keyboard_handler() {

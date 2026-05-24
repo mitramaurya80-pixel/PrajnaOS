@@ -7,6 +7,7 @@ struct idt_ptr   ip; // IDT pointer
 extern void idt_flush(uint32_t); // IDT flush function
 extern void isr_keyboard(); // Keyboard interrupt handler
 extern void isr_timer();       // Timer interrupt handler
+extern void isr_default();     // Default interrupt handler
 
 static void outb(uint16_t port, uint8_t val) { // Output byte to port
     __asm__ volatile ("outb %0, %1" : : "a"(val), "Nd"(port)); // Output byte to port
@@ -26,9 +27,9 @@ void irq0_handler(void) {
 void idt_init() { // Initialize IDT
     ip.limit = (sizeof(struct idt_entry) * 256) - 1; // Set limit
     ip.base  = (uint32_t)&idt; // Set base
-
+    //
     for (int i = 0; i < 256; i++) // Set all IDT entries to 0
-        idt_set(i, 0, 0, 0); // Set IDT entry to 0
+        idt_set(i,(uint32_t)isr_default, 0x08, 0x8E); // Set IDT entry to default handler
 
     // Remap PIC — shift IRQs to interrupts 32-47
     outb(0x20, 0x11);
@@ -42,11 +43,10 @@ void idt_init() { // Initialize IDT
     outb(0x21, 0x00);
     outb(0xA1, 0x00);
 
-    // Interrupt 32 = IRQ0 = timer — dummy handler so it doesn't crash
+    /* override with real handlers */
     idt_set(32, (uint32_t)isr_timer,    0x08, 0x8E);
-
-    // Interrupt 33 = IRQ1 = keyboard
     idt_set(33, (uint32_t)isr_keyboard, 0x08, 0x8E);
+    idt_set(46, (uint32_t)isr_default, 0x08, 0x8E);  /* default handler for unhandled interrupts */
 
     idt_flush((uint32_t)&ip);
 }
