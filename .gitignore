@@ -5,7 +5,8 @@
 *.iso
 
 # linker / kernel outputs
-kernel
+kernel/*.bin
+kernel/*.o
 boot
 *.img
 
