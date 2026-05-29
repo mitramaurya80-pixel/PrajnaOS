@@ -2,7 +2,7 @@ CC      = gcc
 CFLAGS  = -m32 -ffreestanding -Ikernel/include -fno-stack-protector
 LDFLAGS = -m elf_i386 -T linker.ld
 
-OBJS = boot.o gdt_asm.o gdt.o idt_asm.o idt.o isr.o kernel.o shell.o pit.o ata.o
+OBJS = boot.o gdt_asm.o gdt.o idt_asm.o idt.o isr.o kernel.o shell.o pit.o ata.o ml_math.o
 
 all: myos.iso
 
@@ -35,6 +35,9 @@ pit.o:
 
 ata.o:
 	$(CC) $(CFLAGS) -c kernel/ata.c -o ata.o
+
+ml_math.o:
+	$(CC) $(CFLAGS) -c kernel/ml/ml_math.c -o ml_math.o
 
 kernel.bin: $(OBJS)
 	ld $(LDFLAGS) -o kernel.bin $(OBJS)
