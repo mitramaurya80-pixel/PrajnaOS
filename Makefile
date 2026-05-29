@@ -47,6 +47,7 @@ myos.iso: kernel.bin
 
 run: myos.iso disk.img
 	# remount and update kernel on disk
+	mkdir -p /tmp/prajna
 	sudo losetup -P /dev/loop10 disk.img
 	sudo mount /dev/loop10p1 /tmp/prajna
 	sudo cp iso/boot/kernel.bin /tmp/prajna/boot/
