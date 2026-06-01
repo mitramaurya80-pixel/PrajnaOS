@@ -1,6 +1,7 @@
 #include "include/types.h"
 #include "include/shell.h"
 #include "include/pit.h"
+extern void put_char(char c, char color);  /* implemented in isr.c */
 /* ── our own strcmp — no stdlib in PrajnaOS ── */
 static int kstrcmp(char *a, char *b) {
     while (*b) {        /* while both strings have chars */
@@ -9,6 +10,18 @@ static int kstrcmp(char *a, char *b) {
         a++; b++;             /* move to next char */
     }
     return !(*a== ' ' || *a == '\0');        /* equal only if both ended */
+}
+/* iris classifier — no stdlib, no malloc
+   species: 0=setosa, 1=versicolor, 2=virginica */
+int classify_iris(float sl, float sw, float pl, float pw) {
+    if (pl <= 2.45f)
+        return 0;  /* setosa */
+    if (pw <= 1.75f) {
+        if (pl <= 4.95f)
+            return 1;  /* versicolor */
+        return 2;      /* virginica */
+    }
+    return 2;          /* virginica */
 }
 static void outb(uint16_t port, uint8_t val) { // Output byte to port
     __asm__ volatile ("outb %0, %1" : : "a"(val), "Nd"(port)); // Output byte to port
@@ -42,7 +55,7 @@ static void print_prompt(char *s, char color) {
 }
 
 /* ── print string to screen ── */
-extern void put_char(char c ,char color);  /* already in isr.c */
+
 
 static void print(char *s ,char color) {
     while (*s)                 /* loop until null terminator */
@@ -52,6 +65,15 @@ static void print(char *s ,char color) {
 
 /* ── command handler ── */
 void shell_handle(char *cmd) {
+    /* debug — print first 3 chars of cmd */
+    // put_char('\n', 0x0C);
+    // put_char('[', 0x0C);
+    // put_char(cmd[0], 0x0C);
+    // put_char(cmd[1], 0x0C);
+    // put_char(cmd[2], 0x0C);
+    // put_char(']', 0x0C);
+    // put_char('\n', 0x0C);
+    
 
     if (kstrcmp(cmd, "help") == 0) {
         print("Commands: help, clear, about, uptime", 0x0E);
@@ -112,9 +134,18 @@ void shell_handle(char *cmd) {
         halt();
     }else if (kstrcmp(cmd, "reboot") == 0) {
         reboot();
-    }
-    else {
-        print("Unknown command. Type help." , 0x04);
+    }else if (kstrcmp(cmd, "classify") == 0) {
+        /* example command to classify iris flower */
+        float sl = 5.1f, sw = 3.5f, pl = 1.4f, pw = 0.2f;
+    int species = classify_iris(sl, sw, pl, pw);
+    char *species_str = (species == 0) ? "setosa" :
+                        (species == 1) ? "versicolor" : "virginica";
+    print(species_str, 0x0A);
+    }   
+    else  {
+        
+        print("Unknown command. Type help.", 0x04);
+        
     }
 
     /* print prompt after every command */
