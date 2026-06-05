@@ -24,6 +24,19 @@
 /* Forward declare your kernel's VGA print function.
  * Replace this with your actual PrajnaOS terminal function. */
 extern void put_char(char c ,char color); 
+/* -------------------------------------------------------
+ * ml_normalize — scale val from [min, max] to [0.0, 1.0]
+ *
+ * Usage: normalize CPU% 0-100 to 0.0-1.0
+ *   float norm_cpu = ml_normalize(proc->cpu_pct, 0.0f, 100.0f);
+ * ------------------------------------------------------- */
+float ml_normalize(float val, float min, float max) {
+    float range = max - min;
+    /* Guard: avoid divide by zero if min == max */
+    if (range < 0.000001f && range > -0.000001f) return 0.5f;
+    float result = (val - min) / range;
+    return ml_clamp(result, 0.0f, 1.0f);
+}
 
 /*
  * int_to_str — convert integer to decimal string

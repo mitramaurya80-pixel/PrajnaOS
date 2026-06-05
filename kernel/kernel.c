@@ -159,6 +159,29 @@ if (fat32_read_file(&entry, file_buf, 512) == 0)
     print((char*)file_buf, 5, 0, 0x0A);
 else
     print("READ ERR", 5, 0, 0x04);
+    /* ── ML Math Test ── */
+#include "include/ml_math.h"
+
+/* test sigmoid */
+float s = ml_sigmoid(0.0f);   /* should be 0.5 */
+float s2 = ml_sigmoid(2.0f);  /* should be ~0.88 */
+float s3 = ml_sigmoid(-2.0f); /* should be ~0.12 */
+
+/* test relu */
+float r1 = ml_relu_scalar(0.7f);   /* should be 0.7 */
+float r2 = ml_relu_scalar(-0.3f);  /* should be 0.0 */
+
+/* test normalize */
+float n = ml_normalize(75.0f, 0.0f, 100.0f); /* should be 0.75 */
+
+/* print results */
+char buf[16];
+ml_float_to_str(s,  buf, 3); print(buf, 6, 0, 0x0E);
+ml_float_to_str(s2, buf, 3); print(buf, 7, 0, 0x0E);
+ml_float_to_str(s3, buf, 3); print(buf, 8, 0, 0x0E);
+ml_float_to_str(r1, buf, 3); print(buf, 9, 0, 0x0E);
+ml_float_to_str(r2, buf, 3); print(buf, 10, 0, 0x0E);
+ml_float_to_str(n,  buf, 3); print(buf, 11, 0, 0x0E);
     wait_seconds(5);
     clear_screen();
     print("PrajnaOS>", 2, 0, 0x03);
