@@ -27,14 +27,7 @@ static uint32_t fat_next_cluster(uint32_t cluster) {
     return next & 0x0FFFFFFF;
 }
 
-static void print_hex_byte(uint8_t b) {
-    char hi = (b >> 4);
-    char lo = (b & 0xF);
-    hi = (hi < 10) ? ('0' + hi) : ('A' + hi - 10);
-    lo = (lo < 10) ? ('0' + lo) : ('A' + lo - 10);
-    put_char(hi, 0x0C);
-    put_char(lo, 0x0C);
-}
+
 
 /* ── initialize FAT32 ── */
 uint8_t fat32_init(uint32_t partition_lba) {
@@ -42,11 +35,6 @@ uint8_t fat32_init(uint32_t partition_lba) {
 
     if (ata_read_sector(partition_lba, buf))
         return 1;
-
-    int i;
-    for (i = 0; i < 16; i++) {
-        print_hex_byte(buf[i]);
-    }
 
     if (buf[510] != 0x55 || buf[511] != 0xAA)
         return 2;
@@ -115,7 +103,6 @@ uint8_t fat32_find_file(const char *name, const char *ext, FAT32_Entry *out) {
     uint32_t lba;
     int      i, s;
 
-    extern void put_char(char c, char color);
 
     while (cluster < 0x0FFFFFF8) {
     lba = cluster_to_lba(cluster);
@@ -138,7 +125,7 @@ uint8_t fat32_find_file(const char *name, const char *ext, FAT32_Entry *out) {
                 *out = *e;
                 return 0;
             }
-            
+
 
 }
 } 
@@ -146,32 +133,22 @@ uint8_t fat32_find_file(const char *name, const char *ext, FAT32_Entry *out) {
 }
 
 /* ── read file contents into buffer ── */
-uint8_t fat32_read_test() {
-    uint8_t buf[512];
-    extern void put_char(char c, char color);
+uint8_t fat32_read_file(FAT32_Entry *entry, uint8_t *buf, uint32_t max_bytes) {
+    uint32_t cluster = ((uint32_t)entry->cluster_high << 16) | entry->cluster_low;
+    uint32_t bytes_written = 0;
 
-    /* read root directory sector directly */
-    if (ata_read_sector(4066, buf))
-        return 1;
+    while (cluster < 0x0FFFFFF8) {
+        uint32_t lba = cluster_to_lba(cluster);
 
-    /* TEST.TXT is at offset 0x40 = entry 2 */
-    FAT32_Entry *e = (FAT32_Entry*)(buf + 0x40);
+        int s;
+        for (s = 0; s < sectors_per_cluster; s++) {
+            if (ata_read_sector(lba + s, buf + bytes_written))
+                return 1;
+            bytes_written += 512;
+            if (bytes_written >= max_bytes) return 0;
+        }
 
-    /* get cluster number */
-    uint32_t cluster = ((uint32_t)e->cluster_high << 16) | e->cluster_low;
-
-    /* cluster to LBA — data_start_lba + (cluster-2) * sectors_per_cluster */
-    uint32_t lba = cluster_to_lba(cluster);  /* rough calculation */
-
-    /* read file data */
-    uint8_t file_buf[512];
-    if (ata_read_sector(lba, file_buf))
-        return 1;
-
-    /* print first 16 chars */
-    int i;
-    for (i = 0; i < 16; i++)
-        put_char(file_buf[i], 0x0A);
-
+        cluster = fat_next_cluster(cluster);
+    }
     return 0;
 }

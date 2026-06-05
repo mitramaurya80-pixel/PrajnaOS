@@ -131,12 +131,11 @@ tmp[0] = dbg[5]; print(tmp, 5, 10, 0x0F);
     /* in kernel.c — temporary */
 FAT32_Entry entry;
 uint8_t find_res = fat32_find_file("TEST", "TXT", &entry);
-if (find_res == 0)
-    print("FOUND", 6, 0, 0x02);
-else if (find_res == 2)
-    print("NOTFOUND", 6, 0, 0x04);
+uint8_t file_buf[512];
+if (fat32_read_file(&entry, file_buf, 512) == 0)
+    print((char*)file_buf, 5, 0, 0x0A);
 else
-    print("IOERR", 6, 0, 0x04);
+    print("READ ERR", 5, 0, 0x04);
     print("PrajnaOS>", 10, 0, 0x03);
     while (1) {}
 }
