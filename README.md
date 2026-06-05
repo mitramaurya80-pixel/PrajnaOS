@@ -22,3 +22,4 @@ Planned:
 - Sanskrit NLP voice interface
 
 Built on Fedora Linux using NASM, GCC, and QEMU.
+

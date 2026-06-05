@@ -3,6 +3,7 @@
 // #include "include/pit.h"
 // #include "include/ata.h"
 
+
 // static void print(const char *msg, int row, int col, uint8_t color) {
 //     char *vga = (char *)0xB8000;
 
@@ -73,6 +74,7 @@
 #include "include/pit.h"
 #include "include/ata.h"
 #include "include/fat32.h"    /* add this */
+#include "include/ml_math.h"
 
 
 /* ── must be above kernel_main ── */
@@ -116,18 +118,25 @@ void kernel_main() {
         print("FAT32 mounted", 3, 0, 0x02);
     else
         print("FAT32 failed", 3, 0, 0x04);
+    const char *dbg = "TEST";
+char tmp[2] = {0, 0};
 
+tmp[0] = dbg[0]; print(tmp, 5, 0, 0x0F);  /* T */
+tmp[0] = dbg[1]; print(tmp, 5, 2, 0x0F);  /* E */
+tmp[0] = dbg[2]; print(tmp, 5, 4, 0x0F);  /* S */
+tmp[0] = dbg[3]; print(tmp, 5, 6, 0x0F);  /* T */
+tmp[0] = dbg[4]; print(tmp, 5, 8, 0x0F);  /* should be blank/garbage */
+tmp[0] = dbg[5]; print(tmp, 5, 10, 0x0F);
     /* ── L4: find and read a file ── */
-    FAT32_Entry entry;
-    uint8_t fat_find = fat32_find_file("TEST", "TXT", &entry);
-    if (fat_find == 0) {
-        uint8_t file_buf[512];
-        fat32_read_file(&entry, file_buf, 512);
-        print("File found!", 4, 0, 0x02);
-    } else {
-        print("File not found", 4, 0, 0x04);
-    }
-
-    print("PrajnaOS>", 5, 0, 0x03);
+    /* in kernel.c — temporary */
+FAT32_Entry entry;
+uint8_t find_res = fat32_find_file("TEST", "TXT", &entry);
+if (find_res == 0)
+    print("FOUND", 6, 0, 0x02);
+else if (find_res == 2)
+    print("NOTFOUND", 6, 0, 0x04);
+else
+    print("IOERR", 6, 0, 0x04);
+    print("PrajnaOS>", 10, 0, 0x03);
     while (1) {}
 }

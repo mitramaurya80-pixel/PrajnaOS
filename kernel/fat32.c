@@ -7,38 +7,27 @@ uint32_t fat_start_lba;       /* sector where FAT table starts */
 uint32_t data_start_lba;      /* sector where file data starts */
 uint32_t root_cluster;        /* root directory cluster number */
 uint8_t  sectors_per_cluster; /* sectors per cluster */
-
+extern void put_char(char c, char color);
 /* ── helper: convert cluster number to LBA sector ── */
-/* every cluster is sectors_per_cluster sectors wide */
 static uint32_t cluster_to_lba(uint32_t cluster) {
-    /* cluster 2 is the first data cluster */
     return data_start_lba + (cluster - 2) * sectors_per_cluster;
 }
 
 /* ── helper: read next cluster from FAT table ── */
-/* FAT32 stores a chain — each cluster points to the next */
-/* 0x0FFFFFFF means end of file */
 static uint32_t fat_next_cluster(uint32_t cluster) {
-    uint8_t  buf[512];          /* sector buffer */
-    uint32_t fat_offset;        /* byte offset in FAT */
-    uint32_t fat_sector;        /* which sector of FAT */
-    uint32_t entry_offset;      /* byte offset within that sector */
+    uint8_t  buf[512];
+    uint32_t fat_offset   = cluster * 4;
+    uint32_t fat_sector   = fat_start_lba + (fat_offset / 512);
+    uint32_t entry_offset = fat_offset % 512;
 
-    /* each FAT32 entry is 4 bytes */
-    fat_offset   = cluster * 4;
-    fat_sector   = fat_start_lba + (fat_offset / 512);
-    entry_offset = fat_offset % 512;
-
-    /* read that FAT sector */
     if (ata_read_sector(fat_sector, buf))
-        return 0x0FFFFFFF;  /* read error — treat as end */
+        return 0x0FFFFFFF;
 
-    /* read 4 bytes at entry_offset — mask top 4 bits */
     uint32_t next = *(uint32_t*)(buf + entry_offset);
-    return next & 0x0FFFFFFF;  /* mask reserved bits */
+    return next & 0x0FFFFFFF;
 }
+
 static void print_hex_byte(uint8_t b) {
-    extern void put_char(char c, char color);
     char hi = (b >> 4);
     char lo = (b & 0xF);
     hi = (hi < 10) ? ('0' + hi) : ('A' + hi - 10);
@@ -46,89 +35,80 @@ static void print_hex_byte(uint8_t b) {
     put_char(hi, 0x0C);
     put_char(lo, 0x0C);
 }
+
 /* ── initialize FAT32 ── */
-/* partition_lba = sector where the FAT32 partition starts */
-/* for your disk.img this is usually 0 or 2048 */
 uint8_t fat32_init(uint32_t partition_lba) {
     uint8_t buf[512];
 
-    /* read boot sector of partition */
     if (ata_read_sector(partition_lba, buf))
-        return 1;  /* read error */
+        return 1;
+
     int i;
     for (i = 0; i < 16; i++) {
         print_hex_byte(buf[i]);
     }
-    if (buf[510] != 0x55 || buf[511] != 0xAA) {
-        return 2;  /* not a valid boot sector */
-    }
 
-    /* cast buffer to boot sector struct */
+    if (buf[510] != 0x55 || buf[511] != 0xAA)
+        return 2;
+
     FAT32_Boot *boot = (FAT32_Boot*)buf;
 
-    /* check signature — last 2 bytes must be 0x55 0xAA */
-    if (buf[510] != 0x55 || buf[511] != 0xAA)
-        return 2;  /* not a valid boot sector */
-
-    /* save important values globally */
     sectors_per_cluster = boot->sectors_per_cluster;
     root_cluster        = boot->root_cluster;
+    fat_start_lba       = partition_lba + boot->reserved_sectors;
+    data_start_lba      = fat_start_lba + (boot->fat_count * boot->fat_size_32);
 
-    /* FAT table starts after reserved sectors */
-    fat_start_lba = partition_lba + boot->reserved_sectors;
-
-    /* data region starts after all FAT copies */
-    data_start_lba = fat_start_lba + (boot->fat_count * boot->fat_size_32);
-
-    return 0;  /* success */
+    return 0;
 }
 
-/* ── compare 8.3 filename ── */
-/* FAT32 stores names as 8 chars + 3 chars, space padded */
-/* "IRIS    TXT" not "iris.txt" */
+/* ── compare 8.3 filename — case insensitive ── */
 static uint8_t name_match(uint8_t *entry_name, uint8_t *entry_ext,
                            const char *name, const char *ext) {
     int i;
 
-    /* compare name — 8 chars */
+    /* build padded 8-char name from input */
+    uint8_t padded_name[8];
+    uint8_t padded_ext[3];
+
+    for (i = 0; i < 8; i++) {
+        if (name[i] == '\0') {
+            /* fill rest with spaces */
+            int j;
+            for (j = i; j < 8; j++) padded_name[j] = ' ';
+            break;
+        }
+        uint8_t c = (uint8_t)name[i];
+        if (c >= 'a' && c <= 'z') c -= 32;
+        padded_name[i] = c;
+        if (i == 7) break;
+    }
+
+    for (i = 0; i < 3; i++) {
+        if (ext[i] == '\0') {
+            int j;
+            for (j = i; j < 3; j++) padded_ext[j] = ' ';
+            break;
+        }
+        uint8_t c = (uint8_t)ext[i];
+        if (c >= 'a' && c <= 'z') c -= 32;
+        padded_ext[i] = c;
+    }
+
+    /* now compare */
     for (i = 0; i < 8; i++) {
         uint8_t actual = entry_name[i];
         if (actual >= 'a' && actual <= 'z') actual -= 32;
-
-        uint8_t expected;
-        if ((uint8_t)name[i] == 0)
-            expected = ' ';
-        else {
-            expected = (uint8_t)name[i];
-            if (expected >= 'a' && expected <= 'z') expected -= 32;
-        }
-
-        if (actual != expected) return 0;
+        if (actual != padded_name[i]) return 0;
     }
-
-    /* compare ext — 3 chars */
     for (i = 0; i < 3; i++) {
         uint8_t actual = entry_ext[i];
         if (actual >= 'a' && actual <= 'z') actual -= 32;
-
-        uint8_t expected;
-        if ((uint8_t)ext[i] == 0)
-            expected = ' ';
-        else {
-            expected = (uint8_t)ext[i];
-            if (expected >= 'a' && expected <= 'z') expected -= 32;
-        }
-
-        if (actual != expected) return 0;
+        if (actual != padded_ext[i]) return 0;
     }
 
     return 1;
 }
-// hex byte print
-
 /* ── find file in root directory ── */
-/* name = filename up to 8 chars, ext = extension up to 3 chars */
-/* out = filled with directory entry if found */
 uint8_t fat32_find_file(const char *name, const char *ext, FAT32_Entry *out) {
     uint8_t  buf[512];
     uint32_t cluster = root_cluster;
@@ -137,91 +117,61 @@ uint8_t fat32_find_file(const char *name, const char *ext, FAT32_Entry *out) {
 
     extern void put_char(char c, char color);
 
-    /* debug — print root cluster and data_start_lba */
-    // put_char('C', 0x0E);
-    // put_char('0' + (root_cluster & 0xF), 0x0E);
-    // put_char('D', 0x0E);
-    // put_char('0' + (data_start_lba & 0xF), 0x0E);
-
     while (cluster < 0x0FFFFFF8) {
-        lba = cluster_to_lba(cluster);
+    lba = cluster_to_lba(cluster);
+    int end_of_dir = 0;          /* ADD THIS */
 
-        for (s = 0; s < sectors_per_cluster; s++) {
-            if (ata_read_sector(lba + s, buf))
-                return 1;
+    for (s = 0; s < sectors_per_cluster; s++) {
+        if (ata_read_sector(lba + s, buf))
+            return 1;
 
-            for (i = 0; i < 16; i++) {
-    FAT32_Entry *e = (FAT32_Entry*)(buf + i * 32);
+        for (i = 0; i < 16; i++) {
+            FAT32_Entry *e = (FAT32_Entry*)(buf + i * 32);
 
-    if (e->name[0] == 0x00) goto done;
-    if (e->name[0] == 0xE5) continue;
-    if (e->attributes == 0x0F) continue;
-    if (e->attributes & 0x10) continue;
-    if (e->attributes & 0x08) continue;
+            if (e->name[0] == 0x00) { end_of_dir = 1; break; }
+            if (e->name[0] == 0xE5) continue;
+            if (e->attributes == 0x0F) continue;
+            if (e->attributes & 0x10) continue;
+            if (e->attributes & 0x08) continue;
 
-    /* inline match — no debug */
-    uint8_t match = 1;
-    int m;
-    for (m = 0; m < 8; m++) {
-        uint8_t a = e->name[m];
-        uint8_t b = name[m] ? (uint8_t)name[m] : ' ';
-        if (a != b) { match = 0; break; }
-    }
-    if (match) {
-        for (m = 0; m < 3; m++) {
-            uint8_t a = e->ext[m];
-            uint8_t b = ext[m] ? (uint8_t)ext[m] : ' ';
-            if (a != b) { match = 0; break; }
-        }
-    }
-    if (match) {
-        *out = *e;
-        return 0;
-    }
+            if (name_match(e->name, e->ext, name, ext)) {
+                *out = *e;
+                return 0;
+            }
+            
+
 }
-        }
-        cluster = fat_next_cluster(cluster);
-    }
-
-done:
-    return 2;  /* not found */
+} 
+}       
 }
+
 /* ── read file contents into buffer ── */
-/* entry = directory entry from fat32_find_file() */
-/* buf   = output buffer */
-/* max_bytes = size of your buffer */
-uint8_t fat32_read_file(FAT32_Entry *entry, uint8_t *buf, uint32_t max_bytes) {
-    uint8_t  sector_buf[512];   /* one sector at a time */
-    uint32_t bytes_read = 0;    /* how many bytes copied so far */
-    uint32_t s;
+uint8_t fat32_read_test() {
+    uint8_t buf[512];
+    extern void put_char(char c, char color);
 
-    /* get starting cluster from directory entry */
-    uint32_t cluster = ((uint32_t)entry->cluster_high << 16) | entry->cluster_low;
+    /* read root directory sector directly */
+    if (ata_read_sector(4066, buf))
+        return 1;
 
-    /* walk cluster chain */
-    while (cluster < 0x0FFFFFF8 && bytes_read < max_bytes) {
-        uint32_t lba = cluster_to_lba(cluster);
+    /* TEST.TXT is at offset 0x40 = entry 2 */
+    FAT32_Entry *e = (FAT32_Entry*)(buf + 0x40);
 
-        /* read each sector in cluster */
-        for (s = 0; s < sectors_per_cluster && bytes_read < max_bytes; s++) {
-            if (ata_read_sector(lba + s, sector_buf))
-                return 1;  /* read error */
+    /* get cluster number */
+    uint32_t cluster = ((uint32_t)e->cluster_high << 16) | e->cluster_low;
 
-            /* copy sector to output buffer */
-            uint32_t to_copy = 512;
-            if (bytes_read + to_copy > max_bytes)
-                to_copy = max_bytes - bytes_read;  /* don't overflow */
+    /* cluster to LBA — data_start_lba + (cluster-2) * sectors_per_cluster */
+    uint32_t lba = cluster_to_lba(cluster);  /* rough calculation */
 
-            uint32_t j;
-            for (j = 0; j < to_copy; j++)
-                buf[bytes_read + j] = sector_buf[j];
+    /* read file data */
+    uint8_t file_buf[512];
+    if (ata_read_sector(lba, file_buf))
+        return 1;
 
-            bytes_read += to_copy;
-        }
+    /* print first 16 chars */
+    int i;
+    for (i = 0; i < 16; i++)
+        put_char(file_buf[i], 0x0A);
 
-        /* next cluster */
-        cluster = fat_next_cluster(cluster);
-    }
-
-    return 0;  /* success */
+    return 0;
 }
