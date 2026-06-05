@@ -84,6 +84,7 @@ void shell_handle(char *cmd) {
 
     } else if (cmd[0] == '\0') {
         /* empty command — just show prompt */
+        
 
     } else if (kstrcmp(cmd, "clear") == 0) {
         /* clear screen by printing newlines */

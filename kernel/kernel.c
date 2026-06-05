@@ -75,19 +75,42 @@
 #include "include/ata.h"
 #include "include/fat32.h"    /* add this */
 #include "include/ml_math.h"
+#include "include/shell.h"
 
+extern void clear_screen();  /* implemented in isr.c */
 
 /* ── must be above kernel_main ── */
 static void outb(uint16_t port, uint8_t val) {
     __asm__ volatile ("outb %0, %1" : : "a"(val), "Nd"(port));
 }
 
+void wait_ticks(uint32_t ticks) {
+    uint32_t start = pit_get_ticks();
+    while (pit_get_ticks() - start < ticks) {
+        /* wait */
+    }
+}
+void wait_seconds(uint32_t seconds) {
+    wait_ticks(seconds * 100);  /* since we set PIT to 100Hz */
+}
+
 static void print(const char *msg, int row, int col, uint8_t color) {
     char *vga = (char *)0xB8000;
+    int col_pos = col;
     for (int i = 0; msg[i] != '\0'; i++) {
-        int index = (row * 80 + (col + i)) * 2;
+        if (msg[i] == '\n') {
+            row++;
+            col_pos = 0;
+            continue;
+        }
+        if(msg[i] == '\t') {
+            col_pos += 4;  /* tab = 4 spaces */
+            continue;
+        }
+        int index = (row * 80 + (col_pos)) * 2;
         vga[index]     = msg[i];
         vga[index + 1] = color;
+        col_pos++;
     }
 }
 void kernel_main() {
@@ -136,6 +159,8 @@ if (fat32_read_file(&entry, file_buf, 512) == 0)
     print((char*)file_buf, 5, 0, 0x0A);
 else
     print("READ ERR", 5, 0, 0x04);
-    print("PrajnaOS>", 10, 0, 0x03);
+    wait_seconds(5);
+    clear_screen();
+    print("PrajnaOS>", 2, 0, 0x03);
     while (1) {}
 }
