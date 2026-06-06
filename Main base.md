@@ -1,4 +1,0 @@
-# Hello #
-
-[[grub setting]]
-[[README]]
