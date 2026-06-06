@@ -124,4 +124,6 @@ void ml_print_vec(const char *name, const float *x, int n);
  */
 void ml_float_to_str(float val, char *buf, int precision);
 
+float ml_normalize(float val, float min, float max);
+
 #endif /* ML_MATH_H */

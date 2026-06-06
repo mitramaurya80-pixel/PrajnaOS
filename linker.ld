@@ -3,5 +3,9 @@ SECTIONS {
     . = 1M;
     .text  : { *(.multiboot) *(.text) }
     .data  : { *(.data) }
-    .bss   : { *(.bss) }
+    .bss   : { 
+        *(.bss)
+        . = ALIGN(4096);
+        kernel_end = .;
+    }
 }
