@@ -19,7 +19,9 @@ info/ # contains build info, not source code
 *.swo
 .vscode/
 .idea/
-
+prajna_os_prompt.md
+ravi_full_history_prompt.md
+Main base.md
 #study files
 *.pdf
 *.docx

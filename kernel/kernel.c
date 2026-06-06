@@ -3,131 +3,111 @@
 #include "include/idt.h"
 #include "include/pit.h"
 #include "include/ata.h"
-#include "include/fat32.h"    /* add this */
+#include "include/fat32.h"
 #include "include/ml_math.h"
 #include "include/shell.h"
+#include "include/scheduler.h"
 
-extern void clear_screen();  /* implemented in isr.c */
-extern uint32_t kernel_end;  /* defined in linker.ld, marks end of kernel in memory */
+extern void clear_screen();
+extern uint32_t kernel_end;
 
-/* ── must be above kernel_main ── */
 static void outb(uint16_t port, uint8_t val) {
     __asm__ volatile ("outb %0, %1" : : "a"(val), "Nd"(port));
-}
-
-void wait_ticks(uint32_t ticks) {
-    uint32_t start = pit_get_ticks();
-    while (pit_get_ticks() - start < ticks) {
-        /* wait */
-    }
-}
-void wait_seconds(uint32_t seconds) {
-    wait_ticks(seconds * 100);  /* since we set PIT to 100Hz */
 }
 
 static void print(const char *msg, int row, int col, uint8_t color) {
     char *vga = (char *)0xB8000;
     int col_pos = col;
     for (int i = 0; msg[i] != '\0'; i++) {
-        if (msg[i] == '\n') {
-            row++;
-            col_pos = 0;
-            continue;
-        }
-        if(msg[i] == '\t') {
-            col_pos += 4;  /* tab = 4 spaces */
-            continue;
-        }
-        int index = (row * 80 + (col_pos)) * 2;
+        if (msg[i] == '\n') { row++; col_pos = 0; continue; }
+        if (msg[i] == '\t') { col_pos += 4; continue; }
+        int index = (row * 80 + col_pos) * 2;
         vga[index]     = msg[i];
         vga[index + 1] = color;
         col_pos++;
     }
 }
+
+void wait_ticks(uint32_t ticks) {
+    uint32_t start = pit_get_ticks();
+    while (pit_get_ticks() - start < ticks) {}
+}
+
+void wait_seconds(uint32_t seconds) {
+    wait_ticks(seconds * 100);
+}
+
+/* ── test tasks — defined OUTSIDE kernel_main ── */
+void task1() {
+    char *vga = (char*)0xB8000;
+    uint32_t i = 0;
+    while (1) {
+        vga[0] = 'A';
+        vga[1] = 0x0A;
+        i++;
+        if (i == 10000000) {
+            i = 0;
+            scheduler_tick();  /* manually switch */
+        }
+    }
+}
+
+void task2() {
+    char *vga = (char*)0xB8000;
+    uint32_t i = 0;
+    while (1) {
+        vga[0] = 'B';
+        vga[1] = 0x0C;
+        i++;
+        if (i == 10000000) {
+            i = 0;
+            scheduler_tick();  /* manually switch */
+        }
+    }
+}
+
 void kernel_main() {
-     /* enable FPU — needed for float in classify_iris */
+    /* enable FPU */
     __asm__ volatile (
         "mov %%cr0, %%eax\n"
-        "and $0xFFFFFFFB, %%eax\n"  /* clear EM bit */
-        "or $0x2, %%eax\n"           /* set MP bit */
+        "and $0xFFFFFFFB, %%eax\n"
+        "or $0x2, %%eax\n"
         "mov %%eax, %%cr0\n"
-        "fninit\n"                   /* initialize FPU */
+        "fninit\n"
         : : : "eax"
     );
+
     __asm__ volatile ("cli");
-    outb(0x3D4, 0x0A); // select cursor start register
-    outb(0x3D5, 0x20); // bit 5 = disable cursor
+    outb(0x3D4, 0x0A);
+    outb(0x3D5, 0x20);
     print("Welcome to PrajnaOS", 0, 30, 0x09);
 
     gdt_init();
     idt_init();
     pit_init(100);
     ata_init();
-    print("ATA initialized", 1, 0, 0x02);
 
-    /* ── L4: FAT32 init ── */
-    /* try partition at LBA 0 first */
-    uint8_t fat_res = fat32_init(2048);  /* for our disk.img, partition starts at LBA 2048 */
-    if (fat_res == 0)
-        print("FAT32 mounted", 3, 0, 0x02);
-    else
-        print("FAT32 failed", 3, 0, 0x04);
-    const char *dbg = "TEST";
-char tmp[2] = {0, 0};
+    /* L5 — memory manager */
+    pmm_init((uint32_t)&kernel_end);
+    print("Memory manager ready", 12, 0, 0x02);
 
-tmp[0] = dbg[0]; print(tmp, 5, 0, 0x0F);  /* T */
-tmp[0] = dbg[1]; print(tmp, 5, 2, 0x0F);  /* E */
-tmp[0] = dbg[2]; print(tmp, 5, 4, 0x0F);  /* S */
-tmp[0] = dbg[3]; print(tmp, 5, 6, 0x0F);  /* T */
-tmp[0] = dbg[4]; print(tmp, 5, 8, 0x0F);  /* should be blank/garbage */
-tmp[0] = dbg[5]; print(tmp, 5, 10, 0x0F);
-    /* ── L4: find and read a file ── */
-    /* in kernel.c — temporary */
-FAT32_Entry entry;
-uint8_t find_res = fat32_find_file("TEST", "TXT", &entry);
-uint8_t file_buf[512];
-if (fat32_read_file(&entry, file_buf, 512) == 0)
-    print((char*)file_buf, 5, 0, 0x0A);
-else
-    print("READ ERR", 5, 0, 0x04);
-    /* ── ML Math Test ── */
-#include "include/ml_math.h"
+    void *page1 = pmm_alloc();
+    void *page2 = pmm_alloc();
+    pmm_free(page1);
+    print("PMM initialized", 13, 0, 0x02);
 
-/* test sigmoid */
-float s = ml_sigmoid(0.0f);   /* should be 0.5 */
-float s2 = ml_sigmoid(2.0f);  /* should be ~0.88 */
-float s3 = ml_sigmoid(-2.0f); /* should be ~0.12 */
+    /* L6 — scheduler */
+    scheduler_init();
+    task_create(task1);
+    task_create(task2);
+    print("Scheduler ready", 14, 0, 0x02);
+    __asm__ volatile ("sti");
+    scheduler_start();
 
-/* test relu */
-float r1 = ml_relu_scalar(0.7f);   /* should be 0.7 */
-float r2 = ml_relu_scalar(-0.3f);  /* should be 0.0 */
-
-/* test normalize */
-float n = ml_normalize(75.0f, 0.0f, 100.0f); /* should be 0.75 */
-
-/* print results */
-char buf[16];
-ml_float_to_str(s,  buf, 3); print(buf, 6, 0, 0x0E);
-ml_float_to_str(s2, buf, 3); print(buf, 7, 0, 0x0E);
-ml_float_to_str(s3, buf, 3); print(buf, 8, 0, 0x0E);
-ml_float_to_str(r1, buf, 3); print(buf, 9, 0, 0x0E);
-ml_float_to_str(r2, buf, 3); print(buf, 10, 0, 0x0E);
-ml_float_to_str(n,  buf, 3); print(buf, 11, 0, 0x0E);
-/* L5 — initialize memory manager */
-pmm_init((uint32_t)&kernel_end);
-print("Memory manager ready", 12, 0, 0x02);
-
-/* test — allocate and free a page */
-void *page1 = pmm_alloc();
-void *page2 = pmm_alloc();
-pmm_free(page1);
-
-/* show free memory */
-uint32_t free = pmm_free_pages();
-/* free * 4 = KB, free * 4 / 1024 = MB */
-print("PMM initialized", 13, 0, 0x02);
-    wait_seconds(5);
+    wait_seconds(1);
     clear_screen();
     print("PrajnaOS>", 2, 0, 0x03);
-    while (1) {}
+
+    // __asm__ volatile ("sti");  /* enable interrupts */
+    // scheduler_start();         /* jump into first task — never returns */
 }
