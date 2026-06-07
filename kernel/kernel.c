@@ -7,6 +7,7 @@
 #include "include/ml_math.h"
 #include "include/shell.h"
 #include "include/scheduler.h"
+#include "include/heap.h"
 
 extern void clear_screen();
 extern uint32_t kernel_end;
@@ -90,6 +91,12 @@ void kernel_main() {
     /* L5 — memory manager */
     pmm_init((uint32_t)&kernel_end);
     print("Memory manager ready", 12, 0, 0x02);
+    /* init FAT32 */
+    uint8_t fat_res = fat32_init(2048);
+    if (fat_res == 0)
+        print("FAT32 mounted", 8, 0, 0x02);
+    else
+            print("FAT32 failed", 8, 0, 0x04);
 
     void *page1 = pmm_alloc();
     void *page2 = pmm_alloc();
@@ -101,13 +108,21 @@ void kernel_main() {
     task_create(task1);
     task_create(task2);
     print("Scheduler ready", 14, 0, 0x02);
-    __asm__ volatile ("sti");
-    scheduler_start();
+    // __asm__ volatile ("sti");
+    // scheduler_start();
+    heap_init();
+    print("Heap initialized", 15, 0, 0x02);
+    /* test kmalloc */
+    void *p1 = kmalloc(100);
+    void *p2 = kmalloc(200);
+    kfree(p1);
+    void *p3 = kmalloc(50);  /* should reuse p1's space */
+    print("Heap test done", 16, 0, 0x02);
+    wait_seconds(2);
 
-    wait_seconds(1);
     clear_screen();
     print("PrajnaOS>", 2, 0, 0x03);
+    while (1){};
 
-    // __asm__ volatile ("sti");  /* enable interrupts */
-    // scheduler_start();         /* jump into first task — never returns */
+
 }

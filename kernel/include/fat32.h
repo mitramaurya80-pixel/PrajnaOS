@@ -52,10 +52,21 @@ extern uint32_t fat_start_lba;    /* LBA of FAT table */
 extern uint32_t data_start_lba;   /* LBA of data region */
 extern uint32_t root_cluster;     /* cluster of root directory */
 extern uint8_t  sectors_per_cluster; /* sectors in one cluster */
+extern uint32_t current_cluster;   /* for directory iteration */
+extern uint32_t previous_cluster;
 
 /* ── function declarations ── */
 uint8_t fat32_init(uint32_t partition_lba); /* init — read boot sector */
-uint8_t fat32_find_file(const char *name, const char *ext, FAT32_Entry *out); /* find file in root */
-uint8_t fat32_read_file(FAT32_Entry *entry, uint8_t *buf, uint32_t max_bytes); /* read file contents */
+uint8_t fat32_find_file(const char *name, const char *ext,
+                         FAT32_Entry *out,
+                         uint32_t *out_sector,
+                         uint32_t *out_offset); /* find file in root directory */
+uint8_t fat32_read_file(FAT32_Entry *entry, uint8_t *buf, uint32_t max_bytes); /* read file 
+contents */
+uint8_t fat32_create_file(const char *name, const char *ext); /* create new file in root */
+void fat32_list_dir();
+uint8_t fat32_find_dir(const char *name, FAT32_Entry *out); /* find directory in root */
+uint8_t fat32_write_file(FAT32_Entry *entry, uint32_t dir_sector,
+                          uint32_t dir_offset, uint8_t *data, uint32_t size); /* write file contents */
 
 #endif

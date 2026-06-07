@@ -2,7 +2,7 @@ CC      = gcc
 CFLAGS  = -m32 -ffreestanding -Ikernel/include -fno-stack-protector -mfpmath=387
 LDFLAGS = -m elf_i386 -T linker.ld
 
-OBJS = boot.o gdt_asm.o gdt.o idt_asm.o idt.o isr.o kernel.o shell.o pit.o ata.o ml_math.o fat32.o pmm.o scheduler.o switch.o
+OBJS = boot.o gdt_asm.o gdt.o idt_asm.o idt.o isr.o kernel.o shell.o pit.o ata.o ml_math.o fat32.o pmm.o scheduler.o switch.o heap.o
 
 all: myos.iso
 
@@ -13,6 +13,8 @@ gdt_asm.o:
 	nasm -f elf32 kernel/gdt.asm -o gdt_asm.o
 switch.o:
 	nasm -f elf32 kernel/switch.asm -o switch.o
+heap.o:
+	$(CC) $(CFLAGS) -c kernel/heap.c -o heap.o
 
 gdt.o:
 	$(CC) $(CFLAGS) -c kernel/gdt.c -o gdt.o

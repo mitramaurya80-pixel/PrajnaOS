@@ -1,6 +1,7 @@
 #include "include/types.h"
 #include "include/shell.h"
 #include "include/pit.h"
+#include "include/fat32.h"
 extern void put_char(char c, char color);  /* implemented in isr.c */
 /* ── our own strcmp — no stdlib in PrajnaOS ── */
 static int kstrcmp(char *a, char *b) {
@@ -143,7 +144,148 @@ void shell_handle(char *cmd) {
                         (species == 1) ? "versicolor" : "virginica";
     print(species_str, 0x0A);
     }   
-    else  {
+    else if (kstrcmp(cmd, "ls") == 0) {
+        fat32_list_dir();
+    }else if (kstrcmp(cmd, "cat") == 0) {
+    /* cat filename.ext — print file contents */
+    /* cmd format: "cat TEST.TXT" */
+    if (cmd[3] != ' ') {
+        print("Usage: cat FILENAME.EXT", 0x0C);
+    }else {
+        /* parse filename and extension from cmd+4 */
+        char name[9] = "        ";  /* 8 spaces */
+        char ext[4]  = "   ";       /* 3 spaces */
+        char *arg = cmd + 4;        /* skip "cat " */
+        int j = 0;
+
+        /* copy name — up to 8 chars or dot */
+        while (arg[j] && arg[j] != '.' && j < 8) {
+            name[j] = arg[j];
+            j++;
+        }
+        name[j] = '\0';
+
+        /* skip dot */
+        if (arg[j] == '.') j++;
+
+        /* copy extension — up to 3 chars */
+        int e = 0;
+        while (arg[j] && e < 3) {
+            ext[e++] = arg[j++];
+        }
+        ext[e] = '\0';
+
+        /* find and read file */
+        FAT32_Entry entry;
+        uint32_t dir_sector, dir_offset;
+        if (fat32_find_file(name, ext, &entry, &dir_sector, &dir_offset) == 0) {
+            uint8_t file_buf[512];
+            fat32_read_file(&entry, file_buf, 512);
+            /* print file contents */
+            int k;
+            for (k = 0; k < (int)entry.file_size && k < 512; k++)
+                put_char(file_buf[k], 0x0F);
+            put_char('\n', 0x0F);
+        } else {
+            print("File not found", 0x0C);
+        }
+    }
+} else if (kstrcmp(cmd, "cd") == 0) {
+    if (cmd[2] != ' ') {
+        print("Usage: cd FOLDERNAME", 0x0C);
+    } else {
+        char *arg = cmd + 3;
+
+        /* cd .. — go back */
+        if (arg[0] == '.' && arg[1] == '.') {
+            current_cluster  = previous_cluster;
+            previous_cluster = root_cluster;
+            print("OK", 0x0A);
+        } else {
+            FAT32_Entry entry;
+            if (fat32_find_dir(arg, &entry) == 0) {
+                previous_cluster = current_cluster;  /* save before changing */
+                current_cluster  = ((uint32_t)entry.cluster_high << 16)
+                                   | entry.cluster_low;
+                if (current_cluster == 0)
+                    current_cluster = root_cluster;
+                print("OK", 0x0A);
+            } else {
+                print("Directory not found", 0x0C);
+            }
+        }
+    }
+}else if (kstrcmp(cmd, "touch") == 0) {
+    if (cmd[5] != ' ') {
+        print("Usage: touch FILENAME.EXT", 0x0C);
+    } else {
+        char name[9] = "        ";
+        char ext[4]  = "   ";
+        char *arg = cmd + 6;
+        int j = 0;
+
+        while (arg[j] && arg[j] != '.' && j < 8) {
+            name[j] = arg[j]; j++;
+        }
+        name[j] = '\0';
+        if (arg[j] == '.') j++;
+        int e = 0;
+        while (arg[j] && e < 3) { ext[e++] = arg[j++]; }
+        ext[e] = '\0';
+
+        uint8_t res = fat32_create_file(name, ext);
+        if (res == 0)
+            print("File created", 0x0A);
+        else
+            print("Failed to create file", 0x0C);
+    }
+} else if (kstrcmp(cmd, "write") == 0) {
+    /* usage: write FILENAME.EXT text content here */
+    if (cmd[5] != ' ') {
+        print("Usage: write FILENAME.EXT text", 0x0C);
+    } else {
+        char name[9] = "        ";
+        char ext[4]  = "   ";
+        char *arg = cmd + 6;  /* skip "write " */
+        int j = 0;
+
+        /* parse filename */
+        while (arg[j] && arg[j] != '.' && j < 8) {
+            name[j] = arg[j]; j++;
+        }
+        name[j] = '\0';
+        if (arg[j] == '.') j++;
+
+        /* parse extension */
+        int e = 0;
+        while (arg[j] && arg[j] != ' ' && e < 3) {
+            ext[e++] = arg[j++];
+        }
+        ext[e] = '\0';
+
+        /* skip space after filename */
+        if (arg[j] == ' ') j++;
+
+        /* rest is content */
+        char *content = arg + j;
+        uint32_t content_len = 0;
+        while (content[content_len]) content_len++;
+
+        /* find file */
+        FAT32_Entry entry;
+        uint32_t dir_sector, dir_offset;
+        if (fat32_find_file(name, ext, &entry, &dir_sector, &dir_offset) == 0) {
+            uint8_t res = fat32_write_file(&entry, dir_sector, dir_offset,
+                                           (uint8_t*)content, content_len);
+            if (res == 0)
+                print("Written", 0x0A);
+            else
+                print("Write failed", 0x0C);
+        } else {
+            print("File not found", 0x0C);
+        }
+    }
+}else {
         
         print("Unknown command. Type help.", 0x04);
         
