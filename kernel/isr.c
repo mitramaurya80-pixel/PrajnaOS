@@ -42,8 +42,8 @@ void clear_screen() {
         vga[i] = ((uint16_t)0x07 << 8) | ' ';   /* black background, light gray space */
     }
     /* Reset cursor position */
-    col = 0;
-    row = 1; 
+    col = 10;
+    row = 2; 
       /* row 0, green  */
     print("Welcome to PrajnaOS",0,30, 0x09);  /* row 1, cyan   */
     

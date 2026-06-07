@@ -12,8 +12,41 @@ static int kstrcmp(char *a, char *b) {
     }
     return !(*a== ' ' || *a == '\0');        /* equal only if both ended */
 }
+/* load iris weights from disk and classify */
+int classify_iris_from_disk(float sl, float sw, float pl, float pw) {
+    FAT32_Entry entry;
+    uint32_t dir_sector, dir_offset;
+
+    /* find IRIS.BIN on disk */
+    if (fat32_find_file("IRIS", "BIN", &entry, &dir_sector, &dir_offset) != 0)
+        return -1;  /* file not found */
+
+    /* read file into buffer */
+    uint8_t buf[512];
+    fat32_read_file(&entry, buf, 512);
+
+    /* extract 4 thresholds — each is a 4-byte float */
+    float t1, t2, t3, t4;
+    uint8_t *p = buf;
+
+    /* copy bytes into float — no memcpy in bare metal */
+    int i;
+    for (i = 0; i < 4; i++) ((uint8_t*)&t1)[i] = p[i];
+    for (i = 0; i < 4; i++) ((uint8_t*)&t2)[i] = p[4+i];
+    for (i = 0; i < 4; i++) ((uint8_t*)&t3)[i] = p[8+i];
+    for (i = 0; i < 4; i++) ((uint8_t*)&t4)[i] = p[12+i];
+
+    /* run inference with loaded thresholds */
+    if (pl <= t1) return 0;           /* setosa */
+    if (pl <= t2) {
+        if (pw <= t3) return 1;       /* versicolor */
+        return 2;                     /* virginica */
+    }
+    if (pw <= t4) return 1;           /* versicolor */
+    return 2;                         /* virginica */
+}
 /* iris classifier — no stdlib, no malloc
-   species: 0=setosa, 1=versicolor, 2=virginica */
+   species: 0=setosa, 1=versicolor, 2=virginica manually coded thresholds from training data */
 int classify_iris(float sl, float sw, float pl, float pw) {
     if (pl <= 2.45f)
         return 0;  /* setosa */
@@ -139,10 +172,14 @@ void shell_handle(char *cmd) {
     }else if (kstrcmp(cmd, "classify") == 0) {
         /* example command to classify iris flower */
         float sl = 5.1f, sw = 3.5f, pl = 1.4f, pw = 0.2f;
-    int species = classify_iris(sl, sw, pl, pw);
-    char *species_str = (species == 0) ? "setosa" :
-                        (species == 1) ? "versicolor" : "virginica";
-    print(species_str, 0x0A);
+        int species = classify_iris_from_disk(sl, sw, pl, pw);
+        if (species == 1){
+            // hardcoded test for iris classifier
+            species = classify_iris(sl, sw, pl, pw);
+            print("hardcoded: ", 0x0A);
+        }
+        char *species_str = (species == 0) ? "Setosa" : (species == 1) ? "Versicolor" : "Virginica";
+        print(species_str, 0x0A);
     }   
     else if (kstrcmp(cmd, "ls") == 0) {
         fat32_list_dir();
