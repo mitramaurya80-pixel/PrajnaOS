@@ -2,6 +2,7 @@
 #include "include/shell.h"
 #include "include/pit.h"
 #include "include/fat32.h"
+#include "ai_kernel.h"
 extern void put_char(char c, char color);  /* implemented in isr.c */
 /* ── our own strcmp — no stdlib in PrajnaOS ── */
 static int kstrcmp(char *a, char *b) {
@@ -322,10 +323,61 @@ void shell_handle(char *cmd) {
             print("File not found", 0x0C);
         }
     }
-}else {
+} else if (kstrcmp(cmd, "prajna status") == 0) {
+    sys_state_t state = ai_get_state();
+    if (state == STATE_CALM)
+        print("Prajna: CALM - system healthy, all tasks normal", 0x0A);
+    else if (state == STATE_NORMAL)
+        print("Prajna: NORMAL - moderate load, monitoring", 0x0E);
+    else
+        print("Prajna: ALERT -   low memory, non-shell tasks blocked", 0x0C);
+
+} else if (kstrcmp(cmd, "prajna why") == 0) {
+    prajna_event_t log[1];
+    uint8_t got = ai_get_log(log, 1);   /* get last 1 decision */
+    if (got == 0) {
+        print("Prajna: no decisions logged yet", 0x07);
+    } else {
+        /* print state */
+        if (log[0].state == STATE_CALM)
+            print("Last decision: CALM", 0x0A);
+        else if (log[0].state == STATE_NORMAL)
+            print("Last decision: NORMAL", 0x0E);
+        else
+            print("Last decision: ALERT — free pages below threshold", 0x0C);
+
+        /* print which tasks were blocked */
+        print("Blocked tasks: ", 0x07);
+        uint8_t any = 0;
+        for (int i = 0; i < MAX_TASKS; i++) {
+        /* skip dead tasks — they're not really blocked */
+        if (tasks[i].state == TASK_DEAD) continue;
+        if (log[0].perm[i] == 0) {
+            put_char('0' + i, 0x0C);
+            put_char(' ', 0x0C);
+            any = 1;
+        }
+    }
+        if (!any) print("none", 0x0A);
+        else put_char('\n', 0x07);
+    }
+
+} else if (kstrcmp(cmd, "prajna log") == 0) {
+    prajna_event_t log[5];
+    uint8_t got = ai_get_log(log, 5);   /* get last 5 decisions */
+    if (got == 0) {
+        print("Prajna: no log entries yet", 0x07);
+    } else {
+        print("Last 5 Prajna decisions:", 0x03);
+        for (int i = 0; i < got; i++) {
+            char *s = (log[i].state == STATE_CALM)   ? "CALM  " :
+                      (log[i].state == STATE_NORMAL) ? "NORML " : "ALERT ";
+            print(s, (log[i].state == STATE_ALERT) ? 0x0C : 0x0A);
+        }
+    }
+}else{
         
         print("Unknown command. Type help.", 0x04);
-        
     }
 
     /* print prompt after every command */
