@@ -20,28 +20,27 @@ static void print(const char *msg, int row, int col, uint8_t color) {
     for (int i = 0; msg[i] != '\0'; i++) {
         if (msg[i] == '\n') { row++; col_pos = 0; continue; }
         if (msg[i] == '\t') { col_pos += 4; continue; }
-        int index = (row * 80 + col_pos) * 2;
+        int index = (row * 80 + col_pos) * 2; 
         vga[index]     = msg[i];
         vga[index + 1] = color;
         col_pos++;
     }
-}/* simple average of a task's recent history */
+}/* ── anomaly helpers — must be above ai_sense() ── */
 static float avg_history(const float *hist, uint8_t filled, uint8_t len) {
-    uint8_t count = filled ? len : len;  /* always check full buffer once filled */
+    uint8_t count = filled ? len : len;
     float sum = 0.0f;
     for (uint8_t i = 0; i < count; i++) sum += hist[i];
     return sum / (float)count;
 }
 
-/* check if current value deviates significantly from average
-   returns 1 if abs(current - avg) > threshold% of avg */
 static uint8_t is_anomalous(float current, float avg) {
-    if (avg < 1.0f) return 0;   /* avoid noise when avg is near zero */
+    if (avg < 1.0f) return 0;
     float diff = current - avg;
-    if (diff < 0) diff = -diff;   /* abs value — no fabs() needed */
+    if (diff < 0) diff = -diff;
     float ratio = diff / avg;
-    return (ratio > 0.6f) ? 1 : 0;   /* 60% deviation = anomaly */
+    return (ratio > 0.6f) ? 1 : 0;
 }
+
 /*History*/
 typedef struct
 {
@@ -196,7 +195,6 @@ static void ai_act(const ai_decision_t *dec) {
         perm_table[i].allowed  = dec->perm[i];
         perm_table[i].priority = dec->priority[i];
     }
-
 
     /* Optional: print system state to VGA */
     if (dec->sys_state == STATE_ALERT)
