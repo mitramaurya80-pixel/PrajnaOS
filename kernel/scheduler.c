@@ -100,7 +100,7 @@ for (i = 0; i < MAX_TASKS; i++) {
     tasks[i].wait_ticks++;
     tasks[i].wait_time = tasks[i].wait_ticks * 10.0f;
     /* Prajna permission check */
-    /* update wait_time for ML input — convert ticks to ms (100Hz = 10ms per tick) */
+    /* update wait_time for ML input — convert ticks to ms (100Hz = 10ms per tick) */   
     if (!prajna_fallback && ai_is_blocked(i)) continue;
 
     /* NEW: combined score = Prajna priority tier + raw ml_score

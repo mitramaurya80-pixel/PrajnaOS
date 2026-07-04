@@ -30,5 +30,6 @@ uint8_t     ai_is_blocked(uint32_t task_id);
 void        ai_kernel_tick(void);
 void        ai_kernel_offline(void);
 sys_state_t ai_get_state(void);   /* optional — useful for shell/debug output */
+uint8_t    ai_get_priority(uint32_t task_id); 
 
 #endif

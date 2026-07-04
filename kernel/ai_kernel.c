@@ -4,6 +4,7 @@
 #include "scheduler.h"
 #include "types.h"
 #include "ml_math.h"
+#include "klib.h"
 
 #define AI_TICK_INTERVAL  50
 #define PMM_ALERT_THRESHOLD  64   /* pages — tune this later */
@@ -12,21 +13,23 @@
 #define EVENT_LOG_SIZE 20
 static uint32_t last_ai_tick = 0;
 static uint8_t  ai_online    = 1;
-static sys_state_t current_state = STATE_NORMAL;
+static sys_state_t current_state = STATE_CALM;
+static uint8_t starvation_warned = 0;   /* print warning only once */
 
-// print function for print alert messages to VGA
+/* vga print */
 static void print(const char *msg, int row, int col, uint8_t color) {
     char *vga = (char *)0xB8000;
     int col_pos = col;
     for (int i = 0; msg[i] != '\0'; i++) {
         if (msg[i] == '\n') { row++; col_pos = 0; continue; }
         if (msg[i] == '\t') { col_pos += 4; continue; }
-        int index = (row * 80 + col_pos) * 2; 
+        int index = (row * 80 + col_pos) * 2;
         vga[index]     = msg[i];
         vga[index + 1] = color;
         col_pos++;
     }
-}/* ── anomaly helpers — must be above ai_sense() ── */
+}
+/* ── anomaly helpers — must be above ai_sense() ── */
 static float avg_history(const float *hist, uint8_t filled, uint8_t len) {
     uint8_t count = filled ? len : len;
     float sum = 0.0f;
@@ -187,9 +190,10 @@ static void ai_think(const ai_input_t *in, ai_decision_t *out) {
 }
 
 /* ── Act ── */
+/* ── Act ── */
 static void ai_act(const ai_decision_t *dec) {
-        /* in ai_act(), always print current state */
-    /* NEW: log this decision to ring buffer */
+
+    /* ── log decision to ring buffer ── */
     prajna_event_t *ev = &event_log[event_index];
     ev->tick  = pit_get_ticks();
     ev->state = dec->sys_state;
@@ -200,30 +204,57 @@ static void ai_act(const ai_decision_t *dec) {
     event_index = (event_index + 1) % EVENT_LOG_SIZE;
     if (event_index == 0) event_filled = 1;
 
-    if (dec->sys_state == STATE_CALM)
-        print("[PRAJNA] CALM", 22, 0, 0x03);
-    else if (dec->sys_state == STATE_NORMAL)
-        print("[PRAJNA] NORMAL", 22, 0, 0x03);
-    else
-        print("[PRAJNA] ALERT", 22, 0, 0x04);
+
+    /* ── write permission table ── */
     for (int i = 0; i < MAX_TASKS; i++) {
         perm_table[i].allowed  = dec->perm[i];
         perm_table[i].priority = dec->priority[i];
     }
 
-    /* Optional: print system state to VGA */
-    if (dec->sys_state == STATE_ALERT)
-        print("[PRAJNA] ALERT -- low memory", 14, 0, 0x03);
+    /* ── NEW: proactive alerts on row 23 ── */
+    /* clear alert row first */
+    print("                                                  ", 23, 0, 0x07);
 
-/* in ai_act(), after writing perm_table: */
-for (int i = 0; i < MAX_TASKS; i++) {
-    print_num(21, i * 2, 0x0E, perm_table[i].priority);
-}
-}
-/* NEW: return Prajna's priority for a task — 0/1/2 */
-uint8_t ai_get_priority(uint32_t task_id) {
-    if (task_id >= MAX_TASKS) return 1;   /* default normal */
-    return perm_table[task_id].priority;
+    /* alert 1 — low memory warning before ALERT threshold */
+    uint32_t free_pages = pmm_free_pages();
+    if (free_pages < PMM_ALERT_THRESHOLD * 2) {
+        print("[PRAJNA] Warning: memory low, act fast", 23, 0, 0x0E);
+    }
+
+    /* alert 2 — starvation warning — print only once */
+    for (int i = 0; i < MAX_TASKS; i++) {
+        if (tasks[i].state == TASK_DEAD) continue;
+        if (tasks[i].wait_ticks > STARVATION_THRESHOLD) {
+            if (!starvation_warned) {
+                print("[PRAJNA] Warning: task starvation detected", 23, 0, 0x0E);
+                starvation_warned = 1;
+            }
+            break;
+        }
+    }
+
+    /* reset warning when no starvation detected */
+    if (starvation_warned) {
+        uint8_t any = 0;
+        for (int i = 0; i < MAX_TASKS; i++) {
+            if (tasks[i].state == TASK_DEAD) continue;
+            if (tasks[i].wait_ticks > STARVATION_THRESHOLD) { any = 1; break; }
+        }
+        if (!any) starvation_warned = 0;
+    }
+
+    /* alert 3 — anomaly warning */
+    for (int i = 0; i < MAX_TASKS; i++) {
+        if (tasks[i].state == TASK_DEAD) continue;
+        if (dec->perm[i] == 1 && dec->priority[i] < 2) {
+            /* check if anomaly caused priority cap */
+            /* we detect this indirectly — ml_score > 0.7 but priority is 1 */
+            if (perm_table[i].priority == 1 && tasks[i].ml_score > 0.7f) {
+                print("[PRAJNA] Warning: anomaly detected in task", 23, 0, 0x0C);
+                break;
+            }
+        }
+    }
 }
 
 /* ── Main loop hook ── */
@@ -268,4 +299,9 @@ uint8_t ai_get_log(prajna_event_t *out, uint8_t count) {
         out[i] = event_log[idx];
     }
     return count;   /* actual entries returned */
+}
+/* return Prajna's priority for a task — 0/1/2 */
+uint8_t ai_get_priority(uint32_t task_id) {
+    if (task_id >= MAX_TASKS) return 1;   /* default normal */
+    return perm_table[task_id].priority;
 }

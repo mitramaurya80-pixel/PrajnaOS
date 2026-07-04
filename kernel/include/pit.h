@@ -6,6 +6,7 @@
 void pit_init(uint32_t hz);        /* set timer frequency */
 uint32_t pit_get_ticks(void);      /* get current tick count */
 void pit_handler(void);  /* called every timer interrupt from idt.c */
+void draw_top_bar(void);  /* draw top bar with state/mem/tasks/uptime */
 
 
 #endif
