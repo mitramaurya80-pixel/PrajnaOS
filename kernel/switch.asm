@@ -2,7 +2,7 @@ global context_switch
 
 context_switch:
     ; save current task registers
-    push ebp
+    push ebp 
     push ebx
     push esi
     push edi

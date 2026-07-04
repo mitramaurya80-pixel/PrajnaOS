@@ -2,7 +2,7 @@ CC      = gcc
 CFLAGS  = -m32 -ffreestanding -Ikernel/include -fno-stack-protector -mfpmath=387
 LDFLAGS = -m elf_i386 -T linker.ld
 
-OBJS = boot.o gdt_asm.o gdt.o idt_asm.o idt.o isr.o kernel.o shell.o pit.o ata.o ml_math.o fat32.o pmm.o scheduler.o switch.o heap.o
+OBJS = boot.o gdt_asm.o gdt.o idt_asm.o idt.o isr.o kernel.o shell.o pit.o ata.o ml_math.o fat32.o pmm.o scheduler.o switch.o heap.o ml_weights.o ml_infer.o ai_kernel.o
 
 all: myos.iso
 
@@ -19,11 +19,17 @@ heap.o:
 gdt.o:
 	$(CC) $(CFLAGS) -c kernel/gdt.c -o gdt.o
 
+ai_kernel.o:
+	$(CC) $(CFLAGS) -c kernel/ai_kernel.c -o ai_kernel.o
+
 idt_asm.o:
 	nasm -f elf32 kernel/idt.asm -o idt_asm.o
 pmm.o:
 	$(CC) $(CFLAGS) -c kernel/pmm.c -o pmm.o
-
+ml_weights.o:
+	$(CC) $(CFLAGS) -c kernel/ml/ml_weights.c -o ml_weights.o
+ml_infer.o:
+	$(CC) $(CFLAGS) -c kernel/ml/ml_infer.c -o ml_infer.o
 idt.o:
 	$(CC) $(CFLAGS) -c kernel/idt.c -o idt.o
 fat32.o:
@@ -31,6 +37,8 @@ fat32.o:
 
 scheduler.o:
 	$(CC) $(CFLAGS) -c kernel/scheduler.c -o scheduler.o
+
+
 
 isr.o:
 	$(CC) $(CFLAGS) -c kernel/isr.c -o isr.o

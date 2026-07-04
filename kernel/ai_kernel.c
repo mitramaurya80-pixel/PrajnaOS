@@ -9,6 +9,7 @@
 #define PMM_ALERT_THRESHOLD  64   /* pages — tune this later */
 #define STARVATION_THRESHOLD 500 /*ticks -- 5  seconds at 100Hz*/
 #define HISTORY_LEN 8 /*how many past samples to remember per task*/
+#define EVENT_LOG_SIZE 20
 static uint32_t last_ai_tick = 0;
 static uint8_t  ai_online    = 1;
 static sys_state_t current_state = STATE_NORMAL;
@@ -41,6 +42,9 @@ static uint8_t is_anomalous(float current, float avg) {
     return (ratio > 0.6f) ? 1 : 0;
 }
 
+static prajna_event_t event_log[EVENT_LOG_SIZE];
+static uint8_t        event_index  = 0;   /* next write position */
+static uint8_t        event_filled = 0;   /* 1 once buffer wraps */
 /*History*/
 typedef struct
 {
@@ -185,6 +189,17 @@ static void ai_think(const ai_input_t *in, ai_decision_t *out) {
 /* ── Act ── */
 static void ai_act(const ai_decision_t *dec) {
         /* in ai_act(), always print current state */
+    /* NEW: log this decision to ring buffer */
+    prajna_event_t *ev = &event_log[event_index];
+    ev->tick  = pit_get_ticks();
+    ev->state = dec->sys_state;
+    for (int i = 0; i < MAX_TASKS; i++) {
+        ev->perm[i]     = dec->perm[i];
+        ev->priority[i] = dec->priority[i];
+    }
+    event_index = (event_index + 1) % EVENT_LOG_SIZE;
+    if (event_index == 0) event_filled = 1;
+
     if (dec->sys_state == STATE_CALM)
         print("[PRAJNA] CALM", 22, 0, 0x03);
     else if (dec->sys_state == STATE_NORMAL)
@@ -241,4 +256,16 @@ uint8_t ai_is_blocked(uint32_t task_id) {
 }
 sys_state_t ai_get_state(void) {
     return current_state;   /* static variable you already track in ai_think() */
+}
+/* NEW: fill a buffer with last N log entries for shell display */
+uint8_t ai_get_log(prajna_event_t *out, uint8_t count) {
+    uint8_t total = event_filled ? EVENT_LOG_SIZE : event_index;
+    if (count > total) count = total;
+
+    /* read backwards from most recent */
+    for (uint8_t i = 0; i < count; i++) {
+        uint8_t idx = (event_index - 1 - i + EVENT_LOG_SIZE) % EVENT_LOG_SIZE;
+        out[i] = event_log[idx];
+    }
+    return count;   /* actual entries returned */
 }

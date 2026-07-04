@@ -37,31 +37,31 @@ static int shift_held = 0; // 0 = no shift, 1 = shift held
 #define LSHIFT_RELEASE 0xAA  /* 0x2A + 0x80 */ // left shift key release scancode (press scancode + 0x80)
 #define RSHIFT_RELEASE 0xB6  /* 0x36 + 0x80 */ // right shift key release scancode (press scancode + 0x80)
 void clear_screen() {
-    /* Fill entire VGA buffer with spaces */
-    for (int i = 0; i < 2000; i++) {  /* 80 * 25 = 2000 cells */
-        vga[i] = ((uint16_t)0x07 << 8) | ' ';   /* black background, light gray space */
+    /* clear only shell area rows 2-22 — preserve title and status bar */
+    for (int i = 2; i < 23; i++) {
+        for (int j = 0; j < 80; j++) {
+            vga[i * 80 + j] = (0x07 << 8) | ' ';
+        }
     }
-    /* Reset cursor position */
+    print("PrajnaOS>", 2, 0, 0x0A);  /* reprint prompt */
     col = 10;
-    row = 2; 
-      /* row 0, green  */
-    print("Welcome to PrajnaOS",0,30, 0x09);  /* row 1, cyan   */
-    
+    row = 2;
+
 }
 
 // scroll the screen up by one line
 void scroll() {
     /* copy each row into the row above it */
-    for (int i = 1; i < 25; i++) {
+    for (int i = 9; i < 23; i++) {
         for (int j = 0; j < 80; j++) {
             vga[(i-1) * 80 + j] = vga[i * 80 + j];
         }
     }
     /* clear the last row */
     for (int j = 0; j < 80; j++) {
-        vga[24 * 80 + j] = (0x07 << 8) | ' ';
+        vga[22 * 80 + j] = (0x07 << 8) | ' ';
     }
-    row = 24;  /* stay on last row */
+    row = 22;  /* stay on last row */
 }
 /* normal keys — no shift */
 static char keys_normal[] = { // scancode to ASCII mapping for normal keys
@@ -105,6 +105,7 @@ cursor_visible = !cursor_visible;
     if (c == '\n') {
         row++;
         col = 0;
+        if (row >=23) { scroll(); }  
 
         return;
     }

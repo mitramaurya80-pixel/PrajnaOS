@@ -8,14 +8,19 @@
 #include "include/shell.h"
 #include "include/scheduler.h"
 #include "include/heap.h"
+#include "include/ml_weights.h"
+#include "include/ml_infer.h"
+#include "include/ai_kernel.h"
+#include "include/klib.h"
 
-extern void clear_screen();
+extern void clear_screen(void);
 extern uint32_t kernel_end;
 
 static void outb(uint16_t port, uint8_t val) {
     __asm__ volatile ("outb %0, %1" : : "a"(val), "Nd"(port));
 }
 
+/* direct VGA print — used before shell is running */
 static void print(const char *msg, int row, int col, uint8_t color) {
     char *vga = (char *)0xB8000;
     int col_pos = col;
@@ -29,41 +34,43 @@ static void print(const char *msg, int row, int col, uint8_t color) {
     }
 }
 
-void wait_ticks(uint32_t ticks) {
-    uint32_t start = pit_get_ticks();
-    while (pit_get_ticks() - start < ticks) {}
-}
+/* boot greeting — Prajna speaks before shell appears */
+static void boot_time_greeting(void) {
 
-void wait_seconds(uint32_t seconds) {
-    wait_ticks(seconds * 100);
-}
+    /* clear screen first */
+    clear_screen();
+    print(".....PrajnaOS.....", 0, 31, 0x0A);
 
-/* ── test tasks — defined OUTSIDE kernel_main ── */
-void task1() {
-    char *vga = (char*)0xB8000;
-    uint32_t i = 0;
+
+    /* row 3 — FAT32 */
+    print("[PRAJNA] FAT32     : mounted", 3, 0, 0x0A);
+
+    /* row 4 — ML model */
+    print("[PRAJNA] ML model  : loaded",  4, 0, 0x0A);
+
+    /* row 5 — state */
+    sys_state_t state = ai_get_state();
+    if (state == STATE_CALM)
+        print("[PRAJNA] State     : CALM   \xC4 all systems normal", 5, 0, 0x0A);
+    else if (state == STATE_NORMAL)
+        print("[PRAJNA] State     : NORMAL  \xC4 moderate load",      5, 0, 0x0E);
+    else
+        print("[PRAJNA] State     : ALERT  \xC4\xC4 check memory",       5, 0, 0x0C);
+
+    /* row 6 — welcome */
+    print("[PRAJNA] Online. Welcome, Ravi. Prajna is watching.", 6, 0, 0x03);
+    
+    wait(5);  /* wait for 5 ticks (50ms) before clearing screen */
+
+    clear_screen();  /* clear again before shell appears */
+    /* row 7 — blank before shell */
+}
+/* shell runs as a real kernel task */
+void shell_task() {
     while (1) {
-        vga[0] = 'A';
-        vga[1] = 0x0A;
-        i++;
-        if (i == 10000000) {
-            i = 0;
-            scheduler_tick();  /* manually switch */
-        }
-    }
-}
-
-void task2() {
-    char *vga = (char*)0xB8000;
-    uint32_t i = 0;
-    while (1) {
-        vga[0] = 'B';
-        vga[1] = 0x0C;
-        i++;
-        if (i == 10000000) {
-            i = 0;
-            scheduler_tick();  /* manually switch */
-        }
+        /* shell input comes via keyboard interrupt */
+        /* this task just keeps the system alive */
+        __asm__ volatile ("hlt");  /* sleep until next interrupt */
     }
 }
 
@@ -79,50 +86,38 @@ void kernel_main() {
     );
 
     __asm__ volatile ("cli");
+
+    /* hide cursor */
     outb(0x3D4, 0x0A);
     outb(0x3D5, 0x20);
-    print("Welcome to PrajnaOS", 0, 30, 0x09);
 
+    /* ── hardware init ── */
     gdt_init();
     idt_init();
     pit_init(100);
     ata_init();
 
-    /* L5 — memory manager */
+    /* ── memory ── */
     pmm_init((uint32_t)&kernel_end);
-    print("Memory manager ready", 12, 0, 0x02);
-    /* init FAT32 */
-    uint8_t fat_res = fat32_init(2048);
-    if (fat_res == 0)
-        print("FAT32 mounted", 8, 0, 0x02);
-    else
-            print("FAT32 failed", 8, 0, 0x04);
 
-    void *page1 = pmm_alloc();
-    void *page2 = pmm_alloc();
-    pmm_free(page1);
-    print("PMM initialized", 13, 0, 0x02);
+    /* ── FAT32 ── */
+    fat32_init(2048);
 
-    /* L6 — scheduler */
-    scheduler_init();
-    task_create(task1);
-    task_create(task2);
-    print("Scheduler ready", 14, 0, 0x02);
-    // __asm__ volatile ("sti");
-    // scheduler_start();
+    /* ── heap ── */
     heap_init();
-    print("Heap initialized", 15, 0, 0x02);
-    /* test kmalloc */
-    void *p1 = kmalloc(100);
-    void *p2 = kmalloc(200);
-    kfree(p1);
-    void *p3 = kmalloc(50);  /* should reuse p1's space */
-    print("Heap test done", 16, 0, 0x02);
-    wait_seconds(2);
 
-    clear_screen();
-    print("PrajnaOS>", 2, 0, 0x03);
-    while (1){};
+    /* ── scheduler ── */
+    scheduler_init();
 
+    /* ── ML weights ── */
+    ml_weights_load();
+    /* tasks creating*/
+    task_create(shell_task);  /* create shell task */
+    /* ── Prajna boot greeting ── */
+    boot_time_greeting();
+    draw_top_bar();
 
+    /* ── start ── */
+    __asm__ volatile ("sti");
+    scheduler_start();   /* never returns */
 }
