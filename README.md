@@ -258,5 +258,6 @@ make clean && make && make run
 
 ---
 
-*Built by Ravi — 2nd year CSE + Data Science, Jaipur, India*  
+*Built by Ravi — 2nd year CSE + Data Science, Ghazibad, India* 
+*Entering 3rd year — July 2026*
 *"Consciousness. Intelligence. Control."*
