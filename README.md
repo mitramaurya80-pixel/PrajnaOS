@@ -2,27 +2,92 @@
 
 > *Consciousness. Intelligence. Control.*
 
-PrajnaOS is a bare metal x86 operating system built from scratch in C and x86 Assembly
-by a 2nd year CSE + Data Science student at a tier 3 college in Jaipur, India.
+Experimental x86 operating system written from scratch in C and x86 Assembly,
+exploring kernel-level AI inference and autonomous scheduling decisions.
 
-Named after the Sanskrit word for highest intelligence, PrajnaOS is designed with
-AI as its primary kernel controller — not as an app running on top of an OS,
-but as the core decision-maker running directly in kernel space with no Linux,
-no stdlib, no external dependencies of any kind.
+**2,800+ lines** of C and x86 Assembly — no stdlib, no Linux, no external dependencies of any kind.
+
+Built by Raushan Kumar — B.Tech CSE + Data Science, RKGIT, Ghaziabad, India. Entering 3rd year, July 2026.
+
+---
+
+## Demo
+
+![PrajnaOS Demo](demo.gif)
+
+---
+
+## Current Status
+
+| Property | Detail |
+|---|---|
+| Architecture | x86 32-bit protected mode |
+| Stage | Level 9 — Week 2 complete |
+| Build | Bootable (GRUB2 multiboot) |
+| Filesystem | FAT32 (custom driver) |
+| Multitasking | Yes — ML-aware scheduler |
+| ML Inference | Yes — neural network in kernel space |
+| Scheduler | AI-assisted (Prajna kernel) |
+| Shell | Interactive, 21 rows |
+| License | MIT |
 
 ---
 
 ## What makes PrajnaOS different
 
-Every existing OS uses a fixed scheduling algorithm — round-robin, CFS, priority queues.
-PrajnaOS replaces the scheduler's brain with a trained ML model and an AI kernel called
-Prajna that runs a Sense → Think → Act loop every 50ms.
+Traditional operating systems rely on hand-designed scheduling policies such as
+round-robin, priority scheduling, or heuristic-based schedulers. PrajnaOS explores
+using machine learning inference as part of scheduling decisions.
 
-Prajna reads system state, classifies it using neural network inference loaded from disk,
+Prajna reads system state, runs neural network inference loaded from disk,
 decides which tasks are allowed to run and at what priority, and writes those decisions
 into a permission table that the scheduler reads before every context switch.
 
-**AI is not an app on top. AI is the kernel.**
+> AI is not a user-space service. Neural network inference runs directly inside
+> the kernel and participates in scheduling decisions.
+
+---
+
+## Project Statistics
+
+```
+2,800+  lines of C and x86 Assembly
+14      kernel modules
+100 Hz  scheduler tick rate
+50 ms   Prajna AI cycle interval
+20      event log entries (ring buffer)
+5,655   ML training samples
+32-bit  protected mode
+0       external libraries
+```
+
+---
+
+## What is already built
+
+| Component | Status |
+|---|---|
+| Custom bootloader (GRUB2 multiboot) | ✅ |
+| GDT + IDT + interrupt handling | ✅ |
+| PS/2 keyboard driver | ✅ |
+| VGA text mode shell (interactive, 21 rows) | ✅ |
+| PIT timer at 100Hz | ✅ |
+| ATA PIO disk driver | ✅ |
+| FAT32 filesystem — read, write, create, directory traversal | ✅ |
+| Physical memory manager (bitmap allocator) | ✅ |
+| Kernel heap allocator (kmalloc/kfree) | ✅ |
+| Neural network inference in kernel space | ✅ |
+| ML weights loaded from FAT32 disk at boot | ✅ |
+| Multitasking — context switch, ML-aware scheduler | ✅ |
+| Prajna AI kernel — Sense → Think → Act | ✅ |
+| ML score → priority tiers (0/1/2) | ✅ |
+| Starvation-aware blocking (wait_ticks) | ✅ |
+| Anomaly detection per task (z-score history) | ✅ |
+| Ring buffer event log (20 decisions) | ✅ |
+| Shell commands: prajna status / why / log | ✅ |
+| Proactive alerts (memory, starvation, anomaly) | ✅ |
+| Live top bar (state, memory, uptime, tasks) | ✅ |
+| Kernel stdlib — klib (no external deps) | ✅ |
 
 ---
 
@@ -35,7 +100,7 @@ Physical Memory Manager (bitmap allocator)
           │
 FAT32 Filesystem (read, write, create, directory traversal)
           │
-ML Inference Engine (neural network, weights loaded from IRIS.BIN)
+ML Inference Engine (neural network, weights loaded from disk)
           │
 ┌─────────────────────────────────────────────┐
 │              PRAJNA AI KERNEL               │
@@ -44,7 +109,7 @@ ML Inference Engine (neural network, weights loaded from IRIS.BIN)
 │                                             │
 │  Inputs:  tick count, free pages,           │
 │           task states, ml_scores,           │
-│           anomaly history                  │
+│           anomaly history                   │
 │                                             │
 │  Outputs: task permission (allow/block)     │
 │           task priority (0/1/2)             │
@@ -63,7 +128,7 @@ ML Inference Engine (neural network, weights loaded from IRIS.BIN)
 
 ---
 
-## Completed Levels
+## Build history — Levels
 
 | Level | Feature | Status |
 |---|---|---|
@@ -75,6 +140,7 @@ ML Inference Engine (neural network, weights loaded from IRIS.BIN)
 | L6 | Multitasking — context switch + round-robin scheduler | ✅ |
 | L7 | FAT32 shell — ls, cd, cat, touch, write | ✅ |
 | L8 | ML inference in kernel space — neural network from disk | ✅ |
+| L9 | AI kernel upgrade — decision-maker, JARVIS voice, self-awareness | 🔄 |
 
 ---
 
@@ -99,28 +165,30 @@ ML Inference Engine (neural network, weights loaded from IRIS.BIN)
 | Proactive alerts | Prajna warns unprompted — low memory, starvation, anomaly |
 | Live top bar | Row 0: state, memory, uptime, task count — updates every 10s |
 
-### Week 3 — Self-awareness (Jul 4–10) 🔄
+### Week 3 — Self-awareness (Jul 7–10) 🔄
 - Predictive memory model — warn before hitting ALERT threshold
 - `prajna why` explainability trace
 - Confidence score
 - Self-check watchdog
 
 ### Week 4 — Integration & Polish (Jul 11–20) 📋
-- Retrain ML model with new features
+- Retrain ML model with richer features
 - Personality pass — consistent Prajna voice
-- Stress-test demo
+- Stress-test demo (many tasks, induced low memory)
 - Level 9 documentation
 
 ---
 
-## Prajna Laws (immutable)
+## Kernel Design Principles
+
+*Design principles guiding Prajna's decision-making:*
 
 ```
-Law 1: Never harm the system or its data
-Law 2: Obey Ravi unless it violates Law 1
-Law 3: Protect itself unless it violates Law 1 or 2
-Law 4: Never give full control to one task
-Law 5: Always maintain a recovery shell
+1. Never harm the system or its data
+2. Obey the operator unless it violates principle 1
+3. Protect itself unless it violates principles 1 or 2
+4. Never give full control to one task
+5. Always maintain a recovery shell
 ```
 
 ---
@@ -140,11 +208,7 @@ Blocked tasks: none
 
 PrajnaOS> prajna log
 Last 5 Prajna decisions:
-CALM
-CALM
-CALM
-CALM
-CALM
+CALM  CALM  CALM  CALM  CALM
 ```
 
 Neural network inference running directly in kernel space —
@@ -170,11 +234,10 @@ Row 23  │ [PRAJNA] Warning: ...                               ← proactive al
 ## Shell Commands
 
 ```
-help      about     clear     uptime    echo
-version   hello     beep      poweroff  reboot
-classify  ls        cd        cat       touch
-write     prajna status       prajna why
-prajna log
+help      about     clear     uptime      echo
+version   hello     beep      poweroff    reboot
+classify  ls        cd        cat         touch
+write     prajna status       prajna why  prajna log
 ```
 
 ---
@@ -199,15 +262,15 @@ kernel/
 └── ml/
     ├── ml_math.c     — normalize, float utilities
     ├── ml_infer.c    — neural network forward pass
-    └── ml_weights.c  — weights loaded from IRIS.BIN
+    └── ml_weights.c  — weights loaded from disk
 ```
 
 ---
 
 ## Training Dataset
 
-A 5,655-row dataset was generated for Week 4 model retraining:
-- 655 rows — real Fedora Linux process samples (collected via systemd service)
+A 5,655-row dataset prepared for Week 4 model retraining:
+- 655 rows — real Fedora Linux process samples (collected via systemd service on boot)
 - 5,000 rows — synthetic scheduler data (cpu, mem, wait, priority distributions)
 
 Features: `cpu_usage`, `mem_usage`, `wait_time`, `priority` → `score`
@@ -218,9 +281,10 @@ Features: `cpu_usage`, `mem_usage`, `wait_time`, `priority` → `score`
 
 **Target:** IEEE ICACCI — *"PrajnaOS: An AI-Centric Bare Metal OS with ML Inference as the Primary Scheduler"*
 
-**Research gap:** All existing ML inference work runs on Linux or requires an existing OS.
-PrajnaOS runs a trained neural network directly in kernel space of a custom OS
-built entirely from scratch — no stdlib, no OS underneath, no external libraries.
+**Contribution:** Existing ML-assisted scheduling research is commonly implemented
+within established operating systems. PrajnaOS explores integrating neural network
+inference directly into a custom freestanding kernel with no underlying OS,
+no stdlib, and no external libraries.
 
 **SIH 2026:** Foundation for India SHAKTI RISC-V edge AI deployment.
 
@@ -235,7 +299,7 @@ built entirely from scratch — no stdlib, no OS underneath, no external librari
 | Emulator | QEMU qemu-system-i386 |
 | Bootloader | GRUB2 multiboot |
 | Filesystem | FAT32 (custom driver, no external libs) |
-| ML | Custom neural network, weights from disk |
+| ML | Custom neural network, weights from FAT32 disk |
 | Host OS | Fedora Linux |
 
 ---
@@ -246,18 +310,37 @@ built entirely from scratch — no stdlib, no OS underneath, no external librari
 make clean && make && make run
 ```
 
----
-
-## Future (Level 10+)
-
-- Stage 2: hardware sensors, keyboard activity, disk health
-- Stage 3: pattern memory, adaptive scheduling
-- Stage 4: PC speaker, voice/TTS
-- Stage 5: RTL8139 NIC, TCP/IP stack, HTTP server
-- Stage 6: ELF loader, MicroPython, SHAKTI RISC-V port
+Requires: `gcc`, `nasm`, `qemu-system-i386`, `grub2`
 
 ---
 
-*Built by Ravi — 2nd year CSE + Data Science, Ghazibad, India* 
-*Entering 3rd year — July 2026*
+## Roadmap
+
+### Planned (near-term)
+- Predictive memory model — warn before OOM
+- `prajna why` explainability trace
+- Confidence score on scheduling decisions
+- Self-check watchdog for Prajna tick latency
+- Model retrain with richer features
+
+### Experimental (longer-term)
+- PC speaker + voice/TTS (Stage 4)
+- RTL8139 NIC + TCP/IP stack (Stage 5)
+- ELF loader + MicroPython (Stage 6)
+- SHAKTI RISC-V port
+- Adaptive learning from runtime patterns
+
+---
+
+## Attribution
+
+Built by Raushan Kumar ([@mitramaurya80-pixel](https://github.com/mitramaurya80-pixel))  
+Ghaziabad, India — B.Tech CSE + Data Science, RKGIT, entering 3rd year July 2026
+
+If you use or reference this work in academic submissions or competitions,
+attribution to the original author is requested as a matter of academic integrity.
+The full build history with timestamps is publicly verifiable on GitHub.
+
+---
+
 *"Consciousness. Intelligence. Control."*
