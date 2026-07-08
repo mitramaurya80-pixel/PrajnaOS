@@ -23,4 +23,6 @@ context_switch:
     pop ebx
     pop ebp
 
+    sti   ; enable interrupts before returning to next task
+
     ret   ; jump to next task's entry point

@@ -3,16 +3,17 @@
 #include "include/pit.h"
 #include "include/fat32.h"
 #include "ai_kernel.h"
+#include "klib.h"
 extern void put_char(char c, char color);  /* implemented in isr.c */
 /* ── our own strcmp — no stdlib in PrajnaOS ── */
-static int kstrcmp(char *a, char *b) {
-    while (*b) {        /* while both strings have chars */
-        if (*a != *b)         /* if chars don't match */
-            return 1;         /* not equal */
-        a++; b++;             /* move to next char */
-    }
-    return !(*a== ' ' || *a == '\0');        /* equal only if both ended */
-}
+// static int kstrcmp(char *a, char *b) {
+//     while (*b) {        /* while both strings have chars */
+//         if (*a != *b)         /* if chars don't match */
+//             return 1;         /* not equal */
+//         a++; b++;             /* move to next char */
+//     }
+//     return !(*a== ' ' || *a == '\0');        /* equal only if both ended */
+// }
 /* load iris weights from disk and classify */
 int classify_iris_from_disk(float sl, float sw, float pl, float pw) {
     FAT32_Entry entry;
@@ -255,7 +256,7 @@ void shell_handle(char *cmd) {
     }
 }else if (kstrcmp(cmd, "touch") == 0) {
     if (cmd[5] != ' ') {
-        print("Usage: touch FILENAME.EXT", 0x0C);
+        print("Usage: touch FILENAME.TXT", 0x0C);
     } else {
         char name[9] = "        ";
         char ext[4]  = "   ";
@@ -307,8 +308,9 @@ void shell_handle(char *cmd) {
         /* rest is content */
         char *content = arg + j;
         uint32_t content_len = 0;
-        while (content[content_len]) content_len++;
-
+        while (content[content_len]){
+            content_len++;
+        }
         /* find file */
         FAT32_Entry entry;
         uint32_t dir_sector, dir_offset;
@@ -320,7 +322,13 @@ void shell_handle(char *cmd) {
             else
                 print("Write failed", 0x0C);
         } else {
-            print("File not found", 0x0C);
+            uint8_t crea = fat32_create_file(name, ext);
+            uint8_t res = fat32_write_file(&entry, dir_sector, dir_offset,
+                                           (uint8_t*)content, content_len);
+            if (res == 0)
+                print("File created and written", 0x0A);
+            else
+                print("Write failed", 0x0C);
         }
     }
 } else if (kstrcmp(cmd, "prajna status") == 0) {
@@ -362,7 +370,60 @@ void shell_handle(char *cmd) {
         else put_char('\n', 0x07);
     }
 
-} else if (kstrcmp(cmd, "prajna log") == 0) {
+}else if(kstrcmp(cmd, "memory history") == 0) {
+
+    uint32_t pages[HISTORY_LEN];
+    uint32_t ticks[HISTORY_LEN];
+
+    uint8_t got = ai_get_memory_history(pages, ticks);
+
+    if (got == 0) {
+        print("No memory history available.", 0x0C);
+    } else {
+        print("Memory History:", 0x0A);
+
+        char buf[32];
+
+        for (int i = 0; i < got; i++) {
+
+            print("Tick: ", 0x07);
+            uint_to_str(ticks[i]/1000, buf);
+            print(buf, 0x0A);
+
+            print("  Free Pages: ", 0x07);
+            uint_to_str(pages[i], buf);
+            print(buf, 0x0A);
+
+            print("\n", 0x07);
+        }
+    }
+
+}else if(kstrcmp(cmd, "rm") == 0) {
+    if (cmd[2] != ' ') {
+        print("Usage: rm FILENAME.EXT", 0x0C);
+    } else {
+        char name[9] = "        ";
+        char ext[4]  = "   ";
+        char *arg = cmd + 3;
+        int j = 0;
+
+        while (arg[j] && arg[j] != '.' && j < 8) {
+            name[j] = arg[j]; j++;
+        }
+        name[j] = '\0';
+        if (arg[j] == '.') j++;
+        int e = 0;
+        while (arg[j] && e < 3) { ext[e++] = arg[j++]; }
+        ext[e] = '\0';
+
+        uint8_t res = fat32_file_delete(name, ext);
+        if (res == 0)
+            print("File deleted", 0x0A);
+        else
+            print("Failed to delete file", 0x0C);
+    }
+
+}else if (kstrcmp(cmd, "prajna log") == 0) {
     prajna_event_t log[5];
     uint8_t got = ai_get_log(log, 5);   /* get last 5 decisions */
     if (got == 0) {

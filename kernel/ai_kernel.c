@@ -9,7 +9,6 @@
 #define AI_TICK_INTERVAL  50
 #define PMM_ALERT_THRESHOLD  64   /* pages — tune this later */
 #define STARVATION_THRESHOLD 500 /*ticks -- 5  seconds at 100Hz*/
-#define HISTORY_LEN 8 /*how many past samples to remember per task*/
 #define EVENT_LOG_SIZE 20
 static uint32_t last_ai_tick = 0;
 static uint8_t  ai_online    = 1;
@@ -30,8 +29,9 @@ static void print(const char *msg, int row, int col, uint8_t color) {
     }
 }
 /* ── anomaly helpers — must be above ai_sense() ── */
-static float avg_history(const float *hist, uint8_t filled, uint8_t len) {
-    uint8_t count = filled ? len : len;
+static float avg_history(const float *hist, uint8_t filled, uint8_t len, uint8_t index) {
+    uint8_t count = filled ? len : index;
+    if(count == 0) return 0.0f;
     float sum = 0.0f;
     for (uint8_t i = 0; i < count; i++) sum += hist[i];
     return sum / (float)count;
@@ -48,6 +48,24 @@ static uint8_t is_anomalous(float current, float avg) {
 static prajna_event_t event_log[EVENT_LOG_SIZE];
 static uint8_t        event_index  = 0;   /* next write position */
 static uint8_t        event_filled = 0;   /* 1 once buffer wraps */
+// history of free pages and ticks for shell command
+typedef struct
+{
+    uint32_t free_pages[HISTORY_LEN];
+    uint8_t history_index;   /* circular buffer position */
+    uint8_t history_filled;  /* 0 until buffer wraps once */
+    uint32_t ticks[HISTORY_LEN];
+}mem_history_t;
+// trend of free pages over time
+typedef struct {
+    uint32_t oldest_pages;
+    uint32_t newest_pages;
+    uint32_t oldest_tick;
+    uint32_t newest_tick;
+} mem_trend_t;
+static mem_trend_t mem_trend;
+static mem_history_t mem_history;
+
 /*History*/
 typedef struct
 {
@@ -74,7 +92,53 @@ typedef struct {
     float    ml_scores[MAX_TASKS];  /* optional — for debugging */  
     uint8_t anomaly[MAX_TASKS];
 } ai_input_t;
+/*memory prediction */
+static void ai_predict_memory(void)
+{
+    if (!mem_history.history_filled) {
+        return;
+    }
 
+    if (mem_trend.newest_pages >= mem_trend.oldest_pages) {
+        return;
+    }
+
+    uint32_t pages_lost    = mem_trend.oldest_pages - mem_trend.newest_pages;
+    uint32_t ticks_elapsed = mem_trend.newest_tick - mem_trend.oldest_tick;
+
+    if (ticks_elapsed == 0) {
+        return;
+    }
+
+    if (mem_trend.newest_pages <= PMM_ALERT_THRESHOLD) {
+        return;
+    }
+
+    uint32_t remaining= mem_trend.newest_pages - PMM_ALERT_THRESHOLD;
+    uint32_t ticks_to_alert = (remaining * ticks_elapsed) / pages_lost;
+
+    if (ticks_to_alert <= 4000) {
+        print("[PRAJNA] Warning: memory depleting fast, act fast", 22, 0, 0x0E);
+    } else {
+        print("[PRAJNA] Debug: trend ok, not urgent", 22, 0, 0x0A);
+
+    }
+}
+/* NEW: update memory history buffer + trend — called once per sense(), not per task */
+static void update_mem_trend(uint32_t free_pages, uint32_t ticks)
+{
+    mem_history.free_pages[mem_history.history_index] = free_pages;
+    mem_history.ticks[mem_history.history_index]      = ticks;
+    mem_history.history_index = (mem_history.history_index + 1) % HISTORY_LEN;
+    if (mem_history.history_index == 0) mem_history.history_filled = 1;
+
+    mem_trend.newest_pages = free_pages;
+    mem_trend.newest_tick  = ticks;
+    mem_trend.oldest_pages = mem_history.free_pages[mem_history.history_index];
+    mem_trend.oldest_tick  = mem_history.ticks[mem_history.history_index];
+
+    ai_predict_memory();  /* check for memory depletion trend and alert if needed */
+}
 static void ai_sense(ai_input_t *in) {
     in->ticks      = pit_get_ticks();
     in->free_pages = pmm_free_pages();
@@ -95,13 +159,14 @@ static void ai_sense(ai_input_t *in) {
         ai_history_t *h = &task_history[i];
 
         if (h->history_filled) {
-            float cpu_avg = avg_history(h->cpu_history, h->history_filled, HISTORY_LEN);
-            float mem_avg = avg_history(h->mem_history, h->history_filled, HISTORY_LEN);
+            float cpu_avg = avg_history(h->cpu_history, h->history_filled,h->history_index,HISTORY_LEN);
+            float mem_avg = avg_history(h->mem_history, h->history_filled, h->history_index, HISTORY_LEN);
 
             uint8_t cpu_anom = is_anomalous(tasks[i].cpu_usage, cpu_avg);
             uint8_t mem_anom = is_anomalous(tasks[i].mem_usage, mem_avg);
 
             in->anomaly[i] = (cpu_anom || mem_anom) ? 1 : 0;
+        /* check for memory depletion trend and alert if needed */
         }
 
         /* record current values into circular buffer */
@@ -111,6 +176,11 @@ static void ai_sense(ai_input_t *in) {
 
         if (h->history_index == 0) h->history_filled = 1;
     }
+
+    /* ── memory trend — once per sense(), not per task ── */
+    update_mem_trend(in->free_pages, in->ticks);
+
+
 }
 
 
@@ -181,13 +251,7 @@ static void ai_think(const ai_input_t *in, ai_decision_t *out) {
     /* ── save state ── */
     current_state = out->sys_state;
 }
- /* TEMP DEBUG — remove after verifying */
-    void print_num(int row, int col, uint8_t color, uint8_t n) {
-    char *vga = (char *)0xB8000;
-    int idx = (row * 80 + col) * 2;
-    vga[idx]     = '0' + (n % 10);
-    vga[idx + 1] = color;
-}
+
 
 /* ── Act ── */
 /* ── Act ── */
@@ -304,4 +368,27 @@ uint8_t ai_get_log(prajna_event_t *out, uint8_t count) {
 uint8_t ai_get_priority(uint32_t task_id) {
     if (task_id >= MAX_TASKS) return 1;   /* default normal */
     return perm_table[task_id].priority;
+}
+uint8_t ai_get_memory_history(uint32_t pages[], uint32_t ticks[])
+{
+    uint8_t count = mem_history.history_filled ?
+                    HISTORY_LEN :
+                    mem_history.history_index;
+
+    if (count == 0)
+        return 0;
+
+    for (uint8_t i = 0; i < count; i++) {
+        uint8_t idx;
+
+        if (mem_history.history_filled)
+            idx = (mem_history.history_index + i) % HISTORY_LEN;
+        else
+            idx = i;
+
+        pages[i] = mem_history.free_pages[idx];
+        ticks[i] = mem_history.ticks[idx];
+    }
+
+    return count;
 }

@@ -15,6 +15,13 @@
 
 extern void clear_screen(void);
 extern uint32_t kernel_end;
+uint8_t init_status[5]={0}; /* height of the status bar in rows */
+enum {
+    INIT_FAT32,
+    INIT_HEAP,
+    INIT_SCHEDULER,
+    INIT_ML
+};
 
 static void outb(uint16_t port, uint8_t val) {
     __asm__ volatile ("outb %0, %1" : : "a"(val), "Nd"(port));
@@ -43,22 +50,27 @@ static void boot_time_greeting(void) {
 
 
     /* row 3 — FAT32 */
-    print("[PRAJNA] FAT32     : mounted", 3, 0, 0x0A);
+    if (init_status[INIT_FAT32] == 1)
+        print("[PRAJNA] FAT32     : FAILED", 3, 0, 0x0C);
+    else  
+        print("[PRAJNA] FAT32     : mounted", 3, 0, 0x0A);
 
     /* row 4 — ML model */
-    print("[PRAJNA] ML model  : loaded",  4, 0, 0x0A);
+    if (init_status[INIT_ML] == 1){
+        print("[PRAJNA] ML model  : FAILED",  4, 0, 0x0C);ai_kernel_offline();} 
+    else{print("[PRAJNA] ML model  : loaded",  4, 0, 0x0A);}
+
+    if(init_status[INIT_HEAP] == 1) print("[PRAJNA] Heap      : FAILED", 4, 40, 0x0C);
 
     /* row 5 — state */
     sys_state_t state = ai_get_state();
     if (state == STATE_CALM)
-        print("[PRAJNA] State     : CALM   \xC4 all systems normal", 5, 0, 0x0A);
+        print("[PRAJNA] State     : CALM ", 5, 0, 0x0A);
     else if (state == STATE_NORMAL)
-        print("[PRAJNA] State     : NORMAL  \xC4 moderate load",      5, 0, 0x0E);
+        print("[PRAJNA] State     : NORMAL ",      5, 0, 0x0E);
     else
-        print("[PRAJNA] State     : ALERT  \xC4\xC4 check memory",       5, 0, 0x0C);
+        print("[PRAJNA] State     : ALERT  ",       5, 0, 0x0C);
 
-    /* row 6 — welcome */
-    print("[PRAJNA] Online. Welcome, Ravi. Prajna is watching.", 6, 0, 0x03);
     
     wait(5);  /* wait for 5 ticks (50ms) before clearing screen */
 
@@ -101,16 +113,16 @@ void kernel_main() {
     pmm_init((uint32_t)&kernel_end);
 
     /* ── FAT32 ── */
-    fat32_init(2048);
+    if(fat32_init(2048)) init_status[INIT_FAT32] = 1;  /* FAT32 init failed */
 
     /* ── heap ── */
-    heap_init();
+    if(heap_init()) init_status[INIT_HEAP] = 1;  /* heap init failed */
 
     /* ── scheduler ── */
     scheduler_init();
 
     /* ── ML weights ── */
-    ml_weights_load();
+    if(ml_weights_load()) init_status[INIT_ML] = 1;
     /* tasks creating*/
     task_create(shell_task);  /* create shell task */
     /* ── Prajna boot greeting ── */
@@ -121,3 +133,4 @@ void kernel_main() {
     __asm__ volatile ("sti");
     scheduler_start();   /* never returns */
 }
+

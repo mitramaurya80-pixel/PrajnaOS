@@ -9,7 +9,6 @@ kernel/*.bin
 kernel/*.o
 boot
 *.img
-info/ # contains build info, not source code
 # temporary files
 *.log
 *.tmp
@@ -19,8 +18,6 @@ info/ # contains build info, not source code
 *.swo
 .vscode/
 .idea/
-prompt_history.md
-Main base.md
 #study files
 *.pdf
 *.docx

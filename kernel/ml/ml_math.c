@@ -3,7 +3,7 @@
  * Neural network math — no stdlib, no math.h, no FPU tricks
  * Pure C, bare metal kernel safe
  *
- * Author  : Ravi
+ * Author  : Raushan Kumar
  * Project : PrajnaOS ML Inference Engine
  * Level   : L8
  *
@@ -272,21 +272,6 @@ void ml_multiply(const float *A, const float *B, float *C, int out_rows, int in_
     }
 }
  
-/*
- * END ml_math.c
- *
- * Next step: write ml_infer.c which calls these functions
- * in order: multiply -> add_bias -> relu (x2) -> sigmoid
- *
- * Test this file first with a simple unit test in your shell:
- *   float a[4] = {0.8f, 0.4f, 0.9f, 0.2f};
- *   float b[4] = {0.5f, 0.5f, 0.5f, 0.5f};
- *   vga_print_float(ml_dot(a, b, 4));  // should be ~1.15
- *   ml_relu(a, 4);                      // no change (all positive)
- *   vga_print_float(ml_sigmoid(0.0f)); // should be 0.5
- *   vga_print_float(ml_sigmoid(2.0f)); // should be ~0.88
- *   vga_print_float(ml_sigmoid(-2.0f));// should be ~0.12
- */
  
 
 

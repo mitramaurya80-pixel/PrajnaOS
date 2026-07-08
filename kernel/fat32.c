@@ -354,9 +354,10 @@ uint8_t fat32_write_file(FAT32_Entry *entry, uint32_t dir_sector,
                           uint32_t dir_offset, uint8_t *data, uint32_t size) {
     uint8_t sector_buf[512];
     uint32_t i;
-
+    uint32_t bytes_written = 0;
     /* get cluster from entry */
     uint32_t cluster = ((uint32_t)entry->cluster_high << 16) | entry->cluster_low;
+    uint32_t prev_cluster = 0;
 
     /* if no cluster allocated yet — find a free one */
     if (cluster == 0) {
@@ -368,32 +369,74 @@ uint8_t fat32_write_file(FAT32_Entry *entry, uint32_t dir_sector,
         entry->cluster_high = (cluster >> 16) & 0xFFFF;
         entry->cluster_low  = cluster & 0xFFFF;
     }
+    while(bytes_written < size) {
+        /* get LBA of cluster */
+        uint32_t lba = cluster_to_lba(cluster);
+        uint32_t chunk = (size - bytes_written) < 512 ? (size - bytes_written) : 512;   
 
-    /* get LBA of cluster */
-    uint32_t lba = cluster_to_lba(cluster);
+        /* clear sector buffer */
+        for (i = 0; i < 512; i++) sector_buf[i] = 0;
 
-    /* clear sector buffer */
-    for (i = 0; i < 512; i++) sector_buf[i] = 0;
+        for (i = 0; i < chunk; i++)
+            sector_buf[i] = data[bytes_written + i];
 
-    /* copy data into buffer — max 512 bytes */
-    uint32_t to_write = size < 512 ? size : 512;
-    for (i = 0; i < to_write; i++)
-        sector_buf[i] = data[i];
+        /* write sector to disk */
+        if (ata_write_sector(lba, sector_buf)) return 2;
 
-    /* write sector to disk */
-    if (ata_write_sector(lba, sector_buf)) return 2;
+        bytes_written += chunk;
 
-    /* update file size in directory entry */
+        /* if more data to write — get next cluster */
+        if (bytes_written < size) {
+            prev_cluster = cluster;
+            uint32_t next = fat_next_cluster(cluster);
+            if (cluster >= 0x0FFFFFF8) {
+                /* allocate new cluster */
+                next = fat32_find_free_cluster();
+                if (next == 0) return 3;  /* disk full */
+                fat_set_cluster(prev_cluster, next);  /* link previous to new */
+                fat_set_cluster(next, 0x0FFFFFFF);     /* mark new as end of chain */
+                prev_cluster = cluster;
+                cluster=next;
+            }
+        }
+        return 0;  /* success */
+    }
+
     entry->file_size = size;
 
-    /* write updated directory entry back to disk */
     uint8_t dir_buf[512];
-    if (ata_read_sector(dir_sector, dir_buf)) return 3;
+    if (ata_read_sector(dir_sector, dir_buf)) return 3; 
     FAT32_Entry *e = (FAT32_Entry*)(dir_buf + dir_offset);
     e->file_size    = size;
     e->cluster_high = entry->cluster_high;
     e->cluster_low  = entry->cluster_low;
     if (ata_write_sector(dir_sector, dir_buf)) return 4;
+
+    return 0;  /* success */
+}
+uint8_t fat32_file_delete(const char *name, const char *ext) {
+    FAT32_Entry entry;
+    uint32_t dir_sector, dir_offset;
+
+    if (fat32_find_file(name, ext, &entry, &dir_sector, &dir_offset) != 0) {
+        return -1;  /* file not found */
+    }
+
+    /* mark directory entry as deleted */
+    uint8_t buf[512];
+    if (ata_read_sector(dir_sector, buf)) return -2;  /* read error */
+
+    buf[dir_offset] = 0xE5;  /* mark as deleted */
+
+    if (ata_write_sector(dir_sector, buf)) return -3;  /* write error */
+
+    /* free clusters in FAT */
+    uint32_t cluster = ((uint32_t)entry.cluster_high << 16) | entry.cluster_low;
+    while (cluster < 0x0FFFFFF8) {
+        uint32_t next = fat_next_cluster(cluster);
+        fat_set_cluster(cluster, 0x00000000);  /* mark as free */
+        cluster = next;
+    }
 
     return 0;  /* success */
 }

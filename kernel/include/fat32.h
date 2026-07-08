@@ -68,5 +68,6 @@ void fat32_list_dir();
 uint8_t fat32_find_dir(const char *name, FAT32_Entry *out); /* find directory in root */
 uint8_t fat32_write_file(FAT32_Entry *entry, uint32_t dir_sector,
                           uint32_t dir_offset, uint8_t *data, uint32_t size); /* write file contents */
+uint8_t fat32_file_delete(const char *name, const char *ext); /* delete file */
 
 #endif

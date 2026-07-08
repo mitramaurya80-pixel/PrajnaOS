@@ -4,6 +4,7 @@
 #include "types.h"
 #include "scheduler.h"
 
+#define HISTORY_LEN 8 /*how many past samples to remember per task*/
 /* ── permission entry for one task ── */
 typedef struct {
     uint8_t allowed;    /* 0 = blocked, 1 = allowed */
@@ -31,5 +32,7 @@ void        ai_kernel_tick(void);
 void        ai_kernel_offline(void);
 sys_state_t ai_get_state(void);   /* optional — useful for shell/debug output */
 uint8_t    ai_get_priority(uint32_t task_id); 
+uint8_t     ai_get_memory_history(uint32_t pages[], uint32_t ticks[]);  /* optional — useful for shell/debug output */
+
 
 #endif

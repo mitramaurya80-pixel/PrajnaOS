@@ -123,14 +123,16 @@ void draw_top_bar(void) {
 
 /* called every timer interrupt from idt.c */
 void pit_handler(void) {
+    outb(0x20, 0x20);  /* send EOI to PIC */
     ticks++;   /* increment tick counter */
 
     if (ticks % 10 == 0) { /* every 10 ticks (1 second) */
         blink(); /* call blink function to toggle LED */
     }
-    if (ticks % 100 == 0) {
+    if (ticks % 100 == 0) { 
 
     scheduler_tick();  /* call scheduler tick to switch tasks */
+    scheduler_do_pending_switch();  /* perform any pending task switch */
     }
     if (ticks % 100 == 0) { /* every 100 ticks (1 second) */
         draw_top_bar(); /* update top bar with state/mem/tasks/uptime */
