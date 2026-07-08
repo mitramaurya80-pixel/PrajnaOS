@@ -3,6 +3,7 @@
 *.bin
 *.elf
 *.iso
+*.d
 
 # linker / kernel outputs
 kernel/*.bin

@@ -4,17 +4,7 @@
 #include "include/fat32.h"
 #include "ai_kernel.h"
 #include "klib.h"
-extern void put_char(char c, char color);  /* implemented in isr.c */
-/* ── our own strcmp — no stdlib in PrajnaOS ── */
-// static int kstrcmp(char *a, char *b) {
-//     while (*b) {        /* while both strings have chars */
-//         if (*a != *b)         /* if chars don't match */
-//             return 1;         /* not equal */
-//         a++; b++;             /* move to next char */
-//     }
-//     return !(*a== ' ' || *a == '\0');        /* equal only if both ended */
-// }
-/* load iris weights from disk and classify */
+extern void put_char(char c, char color); 
 int classify_iris_from_disk(float sl, float sw, float pl, float pw) {
     FAT32_Entry entry;
     uint32_t dir_sector, dir_offset;
@@ -101,18 +91,11 @@ static void print(char *s ,char color) {
 
 /* ── command handler ── */
 void shell_handle(char *cmd) {
-    /* debug — print first 3 chars of cmd */
-    // put_char('\n', 0x0C);
-    // put_char('[', 0x0C);
-    // put_char(cmd[0], 0x0C);
-    // put_char(cmd[1], 0x0C);
-    // put_char(cmd[2], 0x0C);
-    // put_char(']', 0x0C);
-    // put_char('\n', 0x0C);
+
     
 
     if (kstrcmp(cmd, "help") == 0) {
-        print("Commands: help, clear, about, uptime", 0x0E);
+        print("Commands: help, clear, about, uptime, reboot, poweroff, ls ,cat", 0x0E);
 
     } else if (kstrcmp(cmd, "about") == 0) {
         print("PrajnaOS - Consciousness. Intelligence. Control.", 0x01);
@@ -126,6 +109,7 @@ void shell_handle(char *cmd) {
         /* clear screen by printing newlines */
         extern void clear_screen();  /* implemented in isr.c */
         clear_screen();
+        return;  /* skip printing prompt again — already done in clear_screen() */
         
     }else if (kstrcmp(cmd, "uptime") == 0) {
     /* print tick count as simple number */

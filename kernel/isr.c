@@ -37,15 +37,13 @@ static int shift_held = 0; // 0 = no shift, 1 = shift held
 #define LSHIFT_RELEASE 0xAA  /* 0x2A + 0x80 */ // left shift key release scancode (press scancode + 0x80)
 #define RSHIFT_RELEASE 0xB6  /* 0x36 + 0x80 */ // right shift key release scancode (press scancode + 0x80)
 void clear_screen() {
-    /* clear only shell area rows 2-22 — preserve title and status bar */
     for (int i = 2; i < 23; i++) {
         for (int j = 0; j < 80; j++) {
             vga[i * 80 + j] = (0x07 << 8) | ' ';
         }
     }
-    print("PrajnaOS>", 2, 0, 0x0A);  /* reprint prompt */
-    col = 10;
-    row = 2;
+    print("PrajnaOS>", 2, 0, 0x03);  /* show initial prompt */
+    col =9; row = 2;  /* reset cursor position */
 
 }
 
