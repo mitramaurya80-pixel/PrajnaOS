@@ -18,7 +18,7 @@
  * FPU state management becomes a scheduling concern.
  */
 
-#include "/home/vega/projects/PrajnaOS/kernel/include/ml_math.h"
+#include "../include/ml_math.h"
 #include "../include/shell.h" /* for put_char() */
 
 /* Forward declare your kernel's VGA print function.
