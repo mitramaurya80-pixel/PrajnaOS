@@ -3,9 +3,30 @@
 
 /* ── Level 3: input buffer ── */
 #define BUF_SIZE 256
+#define SCANCODE_BUFFER_SIZE 16 /*future size 32*/
 static char input_buf[BUF_SIZE];   /* stores typed characters */
-static int  buf_pos = 0;           /* current position in buffer */
+static uint8_t  buf_pos = 0;           /* current position in buffer */
+static uint8_t scancode_buffer[SCANCODE_BUFFER_SIZE]; /* circular buffer for scancodes */
+static uint8_t scancode_head = 0; /* index for next scancode to read */
+static uint8_t scancode_tail = 0; /* index for next scancode to write */
 
+static void scancode_push(uint8_t scancode) {
+    uint8_t next_head = (scancode_head + 1) % SCANCODE_BUFFER_SIZE;
+    if (next_head == scancode_tail) { /* check for buffer overflow */
+        return;
+    }
+    scancode_buffer[scancode_head] = scancode;
+    scancode_head = next_head;
+}
+ uint8_t scancode_pop(uint8_t *out) {
+    if(scancode_head == scancode_tail) {
+        return 0; /* buffer empty */
+    }
+    uint8_t scancode = scancode_buffer[scancode_tail];
+    *out =scancode_buffer[scancode_tail];
+    scancode_tail = (scancode_tail + 1) % SCANCODE_BUFFER_SIZE;
+    return 1; /* success */
+}
 // print fuction declaration
 void print(const char *msg, int row, int col, uint8_t color) {
     char *vga = (char *)0xB8000;
@@ -128,8 +149,7 @@ cursor_visible = !cursor_visible;
     if (row >= 25) { scroll(); }
 }
 
-void keyboard_handler() {
-    uint8_t scancode = inb(0x60);
+void process_scancode(uint8_t scancode) {
 
     /* check for shift press — do NOT ignore, track it */
     if (scancode == LSHIFT_PRESS || scancode == RSHIFT_PRESS) {
@@ -177,4 +197,10 @@ void keyboard_handler() {
             }
         }
     }
+}
+
+void keyboard_handler() {
+    uint8_t scancode = inb(0x60);  /* read from keyboard data port */
+    scancode_push(scancode);       /* push to circular buffer */
+    
 }

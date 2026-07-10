@@ -125,6 +125,10 @@ void draw_top_bar(void) {
 void pit_handler(void) {
     outb(0x20, 0x20);  /* send EOI to PIC */
     ticks++;   /* increment tick counter */
+    uint8_t sc;
+    while (scancode_pop(&sc)) {
+        process_scancode(sc);   /* the logic currently inline in keyboard_handler() */
+    }
 
     if (ticks % 10 == 0) { /* every 10 ticks (1 second) */
         blink(); /* call blink function to toggle LED */
