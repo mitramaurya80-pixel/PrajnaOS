@@ -17,6 +17,7 @@ typedef struct {
     uint32_t esp;      /* saved stack pointer — updated on context switch */
     uint32_t stack;    /* physical address of stack page from pmm_alloc */
     uint8_t  state;    /* TASK_DEAD, TASK_READY, TASK_RUNNING */
+    uint8_t run_ticks; /* number of ticks this task has run — for cpu_usage calculation */
      /* ── ML fields — added for L8 ── */
     float cpu_usage;    /* 0.0 to 100.0 */
     float mem_usage;    /* 0.0 to 100.0 */
@@ -28,7 +29,7 @@ typedef struct {
 
 /* ── function declarations ── */
 void scheduler_init();
-void task_create(void (*entry)());
+void task_create(void (*entry)(),uint8_t priority);
 void scheduler_tick();
 void context_switch(uint32_t *old_esp, uint32_t new_esp);
 void scheduler_start();

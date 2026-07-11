@@ -326,30 +326,39 @@ void shell_handle(char *cmd) {
 
 } else if (kstrcmp(cmd, "prajna why") == 0) {
     prajna_event_t log[1];
-    uint8_t got = ai_get_log(log, 1);   /* get last 1 decision */
+    uint8_t got = ai_get_log(log, 1);
     if (got == 0) {
         print("Prajna: no decisions logged yet", 0x07);
     } else {
-        /* print state */
         if (log[0].state == STATE_CALM)
             print("Last decision: CALM", 0x0A);
         else if (log[0].state == STATE_NORMAL)
             print("Last decision: NORMAL", 0x0E);
-        else
-            print("Last decision: ALERT — free pages below threshold", 0x0C);
+        else {
+            print("Last decision: ALERT", 0x0C);
+            print("  reason: free pages (", 0x0C);
+            char buf[16];
+            uint_to_str(log[0].free_pages_at_decision, buf);
+            print(buf, 0x0C);
+            print(") below PMM_ALERT_THRESHOLD", 0x0C);
+        }
 
-        /* print which tasks were blocked */
+        if (log[0].starvation_task_id != 0xFF) {
+            print("  starvation guard: task ", 0x0E);
+            put_char('0' + log[0].starvation_task_id, 0x0E);
+            put_char('\n', 0x0E);
+        }
+
         print("Blocked tasks: ", 0x07);
         uint8_t any = 0;
         for (int i = 0; i < MAX_TASKS; i++) {
-        /* skip dead tasks — they're not really blocked */
-        if (tasks[i].state == TASK_DEAD) continue;
-        if (log[0].perm[i] == 0) {
-            put_char('0' + i, 0x0C);
-            put_char(' ', 0x0C);
-            any = 1;
+            if (tasks[i].state == TASK_DEAD) continue;
+            if (log[0].perm[i] == 0) {
+                put_char('0' + i, 0x0C);
+                put_char(' ', 0x0C);
+                any = 1;
+            }
         }
-    }
         if (!any) print("none", 0x0A);
         else put_char('\n', 0x07);
     }

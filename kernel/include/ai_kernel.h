@@ -24,6 +24,9 @@ typedef struct {
     uint8_t     perm[MAX_TASKS];
     uint8_t     priority[MAX_TASKS];
     uint8_t     anomaly[MAX_TASKS];
+    uint8_t    free_pages_at_decision;
+    uint8_t    starvation_task_id;
+    uint8_t    anomaly_task_id;
 } prajna_event_t;
 uint8_t ai_get_log(prajna_event_t *out, uint8_t count);
 /* ── public API ── */

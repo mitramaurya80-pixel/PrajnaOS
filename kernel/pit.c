@@ -125,6 +125,8 @@ void draw_top_bar(void) {
 void pit_handler(void) {
     outb(0x20, 0x20);  /* send EOI to PIC */
     ticks++;   /* increment tick counter */
+    extern uint32_t scheduler_get_current_task(void);
+    tasks[scheduler_get_current_task()].run_ticks++;
     uint8_t sc;
     while (scancode_pop(&sc)) {
         process_scancode(sc);   /* the logic currently inline in keyboard_handler() */

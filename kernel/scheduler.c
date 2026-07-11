@@ -38,7 +38,7 @@ void scheduler_init() {
 
 /* ── create a new task ── */
 /* entry = function pointer — where task starts executing */
-void task_create(void (*entry)()) {
+void task_create(void (*entry)(),uint8_t priority) {
     uint32_t i;
 
     /* find empty slot */
@@ -69,6 +69,7 @@ void task_create(void (*entry)()) {
     tasks[i].esp   = (uint32_t)stack;
     tasks[i].stack = stack_page;
     tasks[i].state = TASK_READY;
+    tasks[i].priority = priority;
 
     task_count++;
 }
@@ -181,3 +182,6 @@ void scheduler_do_pending_switch(void) {
     context_switch(&tasks[prev].esp, tasks[best].esp);
 }
 
+uint32_t scheduler_get_current_task(void) {
+    return current_task;
+}
