@@ -17,6 +17,26 @@ Built by Raushan Kumar — B.Tech CSE + Data Science, RKGIT, Ghaziabad, India. E
 
 ---
 
+## Feedback wanted
+
+This is a solo, from-scratch learning project — built while still a student,
+still finding a lot of the bugs and design gaps myself as I go. If you read
+through the code, the architecture, or the roadmap and have thoughts, I'd
+genuinely like to hear them:
+
+- **Found a bug or a design flaw?** Open an issue — even something small.
+- **Have an idea for what Prajna should sense or decide on next?** Open a
+  discussion or PR.
+- **Know something about OS dev, scheduling, or embedded ML I'm missing?**
+  A comment pointing me toward the right direction is worth a lot more to
+  me right now than a star.
+
+I'd rather hear "this part is weaker than it looks" than have it go
+unnoticed — that's the only way this actually gets better.
+
+---
+ 
+
 ## Current Status
 
 | Property | Detail |
