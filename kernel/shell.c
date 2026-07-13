@@ -5,6 +5,7 @@
 #include "ai_kernel.h"
 #include "klib.h"
 extern void put_char(char c, char color); 
+extern uint8_t ml_float_to_str(float value, char *buf, int precision);
 int classify_iris_from_disk(float sl, float sw, float pl, float pw) {
     FAT32_Entry entry;
     uint32_t dir_sector, dir_offset;
@@ -324,7 +325,42 @@ void shell_handle(char *cmd) {
     else
         print("Prajna: ALERT -   low memory, non-shell tasks blocked", 0x0C);
 
-} else if (kstrcmp(cmd, "prajna why") == 0) {
+}  else if (kstrcmp(cmd, "ps") == 0) {
+    print("ID\tSTATE\tCPU%\tMEM%\tPRI\tSCORE\tWAIT", 0x0E);
+    for (int i = 0; i < MAX_TASKS; i++) {
+        if (tasks[i].state == TASK_DEAD) continue;
+
+        char buf[16];
+        put_char('0' + i, 0x0F);
+        put_char(' ', 0x0F);
+
+        char *state_str = (tasks[i].state == TASK_RUNNING) ? "\tRUN  " :
+                           (tasks[i].state == TASK_READY)   ? "\tREADY" : "\tDEAD ";
+        print_prompt(state_str, 0x0F);
+        put_char('\t', 0x0F);
+
+        ml_float_to_str(tasks[i].cpu_usage, buf, 1);
+        print_prompt(buf, 0x0A);
+        put_char('\t', 0x0F);
+
+        ml_float_to_str(tasks[i].mem_usage, buf, 1);
+        print_prompt(buf, 0x0B);
+        put_char('\t', 0x0F);
+
+        uint_to_str((uint32_t)tasks[i].priority, buf);
+        print_prompt(buf, 0x0F);
+        put_char('\t', 0x0F);
+
+        ml_float_to_str(tasks[i].ml_score, buf, 2);
+        print_prompt(buf, 0x0D);
+        put_char('\t', 0x0F);
+
+        uint_to_str(tasks[i].wait_ticks, buf);
+        print_prompt(buf, 0x0F);
+
+        put_char('\n', 0x0F);
+    }
+}else if (kstrcmp(cmd, "prajna why") == 0) {
     prajna_event_t log[1];
     uint8_t got = ai_get_log(log, 1);
     if (got == 0) {
@@ -346,6 +382,11 @@ void shell_handle(char *cmd) {
         if (log[0].starvation_task_id != 0xFF) {
             print("  starvation guard: task ", 0x0E);
             put_char('0' + log[0].starvation_task_id, 0x0E);
+            put_char('\n', 0x0E);
+        }
+        if (log[0].anomaly_task_id != 0xFF) {
+            print("  anomaly guard: task ", 0x0E);
+            put_char('0' + log[0].anomaly_task_id, 0x0E);
             put_char('\n', 0x0E);
         }
 

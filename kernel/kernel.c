@@ -27,6 +27,7 @@ static void outb(uint16_t port, uint8_t val) {
     __asm__ volatile ("outb %0, %1" : : "a"(val), "Nd"(port));
 }
 
+
 /* direct VGA print — used before shell is running */
 static void print(const char *msg, int row, int col, uint8_t color) {
     char *vga = (char *)0xB8000;
@@ -40,7 +41,6 @@ static void print(const char *msg, int row, int col, uint8_t color) {
         col_pos++;
     }
 }
-
 /* boot greeting — Prajna speaks before shell appears */
 static void boot_time_greeting(void) {
 
@@ -77,6 +77,7 @@ static void boot_time_greeting(void) {
     clear_screen();  /* clear again before shell appears */
     /* row 7 — blank before shell */
 }
+
 /* shell runs as a real kernel task */
 void shell_task() {
     while (1) {
@@ -124,7 +125,7 @@ void kernel_main() {
     /* ── ML weights ── */
     if(ml_weights_load()) init_status[INIT_ML] = 1;
     /* tasks creating*/
-    task_create(shell_task);  /* create shell task */
+    task_create(shell_task,5);  /* create shell task */
     /* ── Prajna boot greeting ── */
     boot_time_greeting();
     draw_top_bar();

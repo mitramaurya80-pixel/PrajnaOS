@@ -139,7 +139,8 @@
 
         ai_predict_memory();  /* check for memory depletion trend and alert if needed */
     }
-    static void ai_sense(ai_input_t *in) {
+    static uint8_t last_cpu_sample_tick = 0;
+    static void ai_sense(ai_input_t *in, uint32_t elapsed) {
         in->ticks      = pit_get_ticks();
         in->free_pages = pmm_free_pages();
         in->sensor_a   = 1.4f;
@@ -147,14 +148,17 @@
 
         in->ready_count = 0;
         in->dead_count  = 0;
+        if(elapsed == 0) elapsed = 1; /* avoid division by zero */
         for (int i = 0; i < MAX_TASKS; i++) {
             if (tasks[i].state == TASK_READY)   in->ready_count++;
             if (tasks[i].state == TASK_DEAD)    in->dead_count++;
             if(tasks[i].state != TASK_DEAD){
-                tasks[i].cpu_usage = (float)tasks[i].run_ticks / (float)AI_TICK_INTERVAL * 100.0f;
+                tasks[i].cpu_usage = (float)tasks[i].run_ticks / (float)elapsed * 100.0f;
+                if(tasks[i].cpu_usage > 100.0f) tasks[i].cpu_usage = 100.0f; /* cap at 100% */
                 tasks[i].run_ticks = 0;
             }
             /* Optional: calculate ML score for each task */
+            
             in->ml_scores[i] = tasks[i].ml_score;
             in->anomaly[i]=0; /*default  not anomaly*/
             if (tasks[i].state==TASK_DEAD) continue;
@@ -258,7 +262,7 @@
 
     /* ── Act ── */
     /* ── Act ── */
-    static void ai_act(const ai_decision_t *dec) {
+    static void ai_act(const ai_input_t *in, const ai_decision_t *dec) {
 
         /* ── log decision to ring buffer ── */
         prajna_event_t *ev = &event_log[event_index];
@@ -272,6 +276,9 @@
             ev->priority[i] = dec->priority[i];
             if(tasks[i].wait_ticks > STARVATION_THRESHOLD && ev->starvation_task_id == 0xFF) {
                 ev->starvation_task_id = i;
+            }
+            if(in->anomaly[i] && ev->anomaly_task_id == 0xFF) {
+                ev->anomaly_task_id = i;
             }
         }
         event_index = (event_index + 1) % EVENT_LOG_SIZE;
@@ -297,11 +304,9 @@
         /* alert 2 — starvation warning — print only once */
         for (int i = 0; i < MAX_TASKS; i++) {
             if (tasks[i].state == TASK_DEAD) continue;
-            if (tasks[i].wait_ticks > STARVATION_THRESHOLD) {
-                if (!starvation_warned) {
-                    print("[PRAJNA] Warning: task starvation detected", 23, 0, 0x0E);
-                    starvation_warned = 1;
-                }
+            if(ev->starvation_task_id != 0xFF && !starvation_warned) {
+                print("[PRAJNA] Warning: task starvation detected", 23, 0, 0x0E);
+                starvation_warned = 1;
                 break;
             }
         }
@@ -317,17 +322,13 @@
         }
 
         /* alert 3 — anomaly warning */
-        for (int i = 0; i < MAX_TASKS; i++) {
-            if (tasks[i].state == TASK_DEAD) continue;
-            if (dec->perm[i] == 1 && dec->priority[i] < 2) {
-                /* check if anomaly caused priority cap */
-                /* we detect this indirectly — ml_score > 0.7 but priority is 1 */
-                if (perm_table[i].priority == 1 && tasks[i].ml_score > 0.7f) {
-                    print("[PRAJNA] Warning: anomaly detected in task", 23, 0, 0x0C);
-                    break;
-                }
-            }
+    for (int i = 0; i < MAX_TASKS; i++) {
+        if (tasks[i].state == TASK_DEAD) continue;
+        if (in->anomaly[i]) {
+            print("[PRAJNA] Warning: anomaly detected in task", 23, 0, 0x0C);
+            break;
         }
+    }
     }
 
     /* ── Main loop hook ── */
@@ -337,14 +338,16 @@
 
         uint32_t now = pit_get_ticks();
         if (now - last_ai_tick < AI_TICK_INTERVAL) return;  
+
+        uint32_t elapsed = now - last_ai_tick;
         last_ai_tick = now;
 
         ai_input_t    in;
         ai_decision_t dec;
 
-        ai_sense(&in);
+        ai_sense(&in, elapsed);
         ai_think(&in, &dec);
-        ai_act(&dec);
+        ai_act(&in,&dec);
     }
 
     /* Fallback — call if ai_kernel_tick watchdog times out */
